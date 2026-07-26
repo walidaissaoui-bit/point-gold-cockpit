@@ -50,6 +50,7 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 .dstat{border:1px solid var(--line);border-radius:12px;padding:11px 13px;background:var(--bg2)}
 .dstat .k{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--mut)}
 .dstat .v{font-family:"JetBrains Mono",monospace;font-size:19px;font-weight:700;margin-top:5px}
+.dstat .s{font-size:10px;color:var(--mut);margin-top:3px}
 .trow{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg2);margin-bottom:7px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12px}
 .trow .tdir{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:6px}
 .tdir.buy{color:var(--bull);background:rgba(43,229,139,.12)}
@@ -117,6 +118,44 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 .ibucket .wr{font-family:"JetBrains Mono",monospace;font-size:18px;font-weight:700;margin-top:4px}
 .ibucket .nn{font-size:10.5px;color:var(--mut);margin-top:2px}
 .ind-note{font-size:11px;color:var(--mut);margin-top:2px;line-height:1.5}
+
+/* --- efficacite des filtres (fantomes) --- */
+.flt-row{border:1px solid var(--line);border-radius:11px;padding:11px 13px;background:var(--bg2);margin-bottom:8px}
+.flt-row .hd{display:flex;align-items:center;gap:9px;flex-wrap:wrap;margin-bottom:8px}
+.flt-row .nm{font-weight:700;font-size:13px}
+.flt-row .cnt{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--mut);margin-left:auto}
+.flt-row .verd{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 8px;border-radius:6px}
+.verd-good{color:var(--bull);background:rgba(43,229,139,.12)}
+.verd-bad{color:var(--bear);background:rgba(255,80,110,.12)}
+.verd-mid{color:var(--amber);background:rgba(255,177,61,.12)}
+.verd-none{color:var(--mut);background:rgba(124,131,152,.12)}
+.flt-split{display:flex;height:9px;border-radius:5px;overflow:hidden;background:rgba(124,131,152,.15)}
+.flt-split i{display:block;height:100%}
+.flt-legend{display:flex;gap:14px;flex-wrap:wrap;font-size:10.5px;color:var(--mut);margin-top:7px}
+.flt-legend b{font-family:"JetBrains Mono",monospace;color:var(--txt)}
+.flt-net{font-size:11.5px;color:var(--mut);margin-top:7px;line-height:1.5}
+.flt-net b{color:var(--txt)}
+
+/* --- anatomie des trades (v1.61) --- */
+.ana-sub{font-size:10px;letter-spacing:1.4px;text-transform:uppercase;color:var(--mut);margin:16px 0 9px;padding-bottom:5px;border-bottom:1px solid var(--line)}
+.ana-sub:first-child{margin-top:0}
+.ana-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:9px}
+.ana-cell{border:1px solid var(--line);border-radius:11px;padding:10px 12px;background:var(--bg2)}
+.ana-cell .hd{display:flex;align-items:center;gap:7px;margin-bottom:6px}
+.ana-cell .tag{font-size:9.5px;font-weight:700;text-transform:uppercase;letter-spacing:.6px;padding:3px 7px;border-radius:6px}
+.tag-tp{color:var(--bull);background:rgba(43,229,139,.12)}
+.tag-sl{color:var(--bear);background:rgba(255,80,110,.12)}
+.tag-manual{color:var(--amber);background:rgba(255,177,61,.12)}
+.tag-unknown{color:var(--mut);background:rgba(124,131,152,.12)}
+.tag-zone{color:var(--cyan);background:rgba(58,214,207,.12)}
+.tag-chase{color:var(--violet);background:rgba(169,139,255,.12)}
+.ana-cell .cnt{font-family:"JetBrains Mono",monospace;font-size:11px;color:var(--mut);margin-left:auto}
+.ana-cell .ln{font-size:11px;color:var(--mut);display:flex;justify-content:space-between;gap:8px;margin-top:3px}
+.ana-cell .ln b{font-family:"JetBrains Mono",monospace;color:var(--txt);font-weight:700}
+.ana-bar{height:6px;border-radius:3px;background:rgba(124,131,152,.15);overflow:hidden;margin-top:7px}
+.ana-bar i{display:block;height:100%;border-radius:3px}
+.ana-insight{border:1px solid var(--line);border-left:3px solid var(--gold);border-radius:9px;padding:10px 13px;background:var(--bg2);font-size:11.5px;color:var(--mut);line-height:1.6;margin-top:11px}
+.ana-insight b{color:var(--txt)}
 </style>
 </head>
 <body>
@@ -129,12 +168,21 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 </div>
 
 <div class="card">
-  <h2><span class="ix">◉</span> Journal du bot <span class="spacer"></span>
+  <h2><span class="ix">◉</span> Journal du bot <span class="free">· bot_logs (PointGold)</span> <span class="spacer"></span>
     <select id="logBotFilter" class="sel"><option value="">Tous les bots</option></select>
     <select id="logEventFilter" class="sel"><option value="">Tous les événements</option></select>
   </h2>
   <div class="log-stats" id="logStats"></div>
   <div class="log-list" id="logList"><div class="empty">chargement…</div></div>
+</div>
+
+<div class="card">
+  <h2><span class="ix">⌬</span> Journal OnlyCockpit <span class="free">· onlycockpit_logs · décisions et refus d'entrée</span> <span class="spacer"></span>
+    <select id="ocBotFilter" class="sel"><option value="">Tous les bots</option></select>
+    <select id="ocLevelFilter" class="sel"><option value="">Tous les niveaux</option></select>
+  </h2>
+  <div class="log-stats" id="ocStats"></div>
+  <div class="log-list" id="ocList"><div class="empty">chargement…</div></div>
 </div>
 
 <div class="card">
@@ -182,6 +230,16 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
   <div class="ind-note" id="indNote"></div>
 </div>
 
+<div class="card">
+  <h2><span class="ix">🔬</span> Anatomie des trades <span class="free">· cockpit_trades · sorties, MAE/MFE, R prévu vs réalisé</span></h2>
+  <div id="anaBox"><div class="empty">chargement…</div></div>
+</div>
+
+<div class="card">
+  <h2><span class="ix">🛡</span> Efficacité des filtres <span class="free">· entrées refusées, suivies sur le papier</span></h2>
+  <div id="fltBox"><div class="empty">chargement…</div></div>
+</div>
+
 </div>
 <script>
 const SB_URL = "https://bddqezljktjzjfxgwvzk.supabase.co";
@@ -190,6 +248,7 @@ const HDR = { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` };
 
 function fmt(n){ return (n===null||n===undefined||isNaN(n)) ? '—' : Number(n).toFixed(2); }
 function fmtDate(d){ return d.toISOString().split('T')[0]; }
+function esc(s){ return String(s??'').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
 async function sb(path){
   const res = await fetch(`${SB_URL}/rest/v1/${path}`, { headers: HDR });
   if(!res.ok) throw new Error(`HTTP ${res.status} sur ${path}`);
@@ -215,7 +274,7 @@ async function loadLogs(){
     populateLogFilters(rows);
     renderLogs();
   }catch(e){
-    document.getElementById('logList').innerHTML = `<div class="empty err">${e.message}</div>`;
+    document.getElementById('logList').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
   }
 }
 function populateLogFilters(rows){
@@ -248,14 +307,90 @@ function renderLogs(){
     try{ payloadStr = typeof r.payload === 'string' ? r.payload : JSON.stringify(r.payload); }catch(e){}
     const t = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR') : '';
     return `<div class="log-row"><span class="dot ${logColor(r.event)}"></span>
-      <div class="body"><span class="ev">${r.bot_id} · ${r.event}</span> <span class="t">${t}</span>
-      <div class="pl mono">${payloadStr}</div></div></div>`;
+      <div class="body"><span class="ev">${esc(r.bot_id)} · ${esc(r.event)}</span> <span class="t">${t}</span>
+      <div class="pl mono">${esc(payloadStr)}</div></div></div>`;
   }).join('');
 }
 document.getElementById('logBotFilter').addEventListener('change', renderLogs);
 document.getElementById('logEventFilter').addEventListener('change', renderLogs);
 loadLogs();
 setInterval(loadLogs, 5000);
+
+/* ============== JOURNAL ONLYCOCKPIT (onlycockpit_logs, poll 10s) ==============
+   Schéma distinct de bot_logs : bot_name / magic / level / message.
+   C'est ici qu'atterrissent les décisions de la v1.6x : armement, refus de
+   chase, quota atteint, blocage structurel, plan réécrit par le cockpit. */
+let OC_ROWS = [];
+const LEVEL_DOT = { error:'log-err', warn:'log-warn', info:'log-mut' };
+/* mots-clés -> couleur, pour repérer une ligne d'un coup d'œil */
+function ocColor(r){
+  const m = (r.message||'');
+  if(r.level === 'error') return 'log-err';
+  if(r.level === 'warn')  return 'log-warn';
+  if(/ENTREE|ENTRÉE/.test(m) && !/ANNULÉE|ANNULEE/.test(m)) return 'log-ok';
+  if(/clôture|cloture/i.test(m)) return 'log-neu';
+  if(/refus|reportée|reportee|ANNULÉE|ANNULEE|BLOQUÉ|BLOQUE/i.test(m)) return 'log-warn';
+  if(/ARMÉ|ARME|RÉÉCRIT|REECRIT/.test(m)) return 'log-neu';
+  return 'log-mut';
+}
+/* catégorise une ligne pour les compteurs */
+function ocKind(r){
+  const m = (r.message||'');
+  if(/ENTREE|ENTRÉE/.test(m) && !/ANNULÉE|ANNULEE/.test(m)) return 'entry';
+  if(/refus|reportée|reportee|ANNULÉE|ANNULEE/i.test(m)) return 'reject';
+  if(/BLOQUÉ|BLOQUE/.test(m)) return 'block';
+  if(r.level === 'error') return 'error';
+  return 'other';
+}
+
+async function loadOcLogs(){
+  try{
+    OC_ROWS = await sb('onlycockpit_logs?select=*&order=created_at.desc&limit=200');
+  }catch(e){
+    document.getElementById('ocList').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
+    return;
+  }
+  const botSel = document.getElementById('ocBotFilter');
+  const lvlSel = document.getElementById('ocLevelFilter');
+  if(botSel.options.length <= 1){
+    [...new Set(OC_ROWS.map(r=>r.bot_name))].sort().forEach(b=>{
+      const o=document.createElement('option'); o.value=b; o.textContent=b; botSel.appendChild(o);
+    });
+  }
+  if(lvlSel.options.length <= 1){
+    [...new Set(OC_ROWS.map(r=>r.level))].sort().forEach(l=>{
+      const o=document.createElement('option'); o.value=l; o.textContent=l; lvlSel.appendChild(o);
+    });
+  }
+  renderOcLogs();
+}
+function renderOcLogs(){
+  const botF = document.getElementById('ocBotFilter').value;
+  const lvlF = document.getElementById('ocLevelFilter').value;
+  const filtered = OC_ROWS.filter(r => (!botF || r.bot_name===botF) && (!lvlF || r.level===lvlF));
+
+  const today = fmtDate(new Date());
+  const todayRows = OC_ROWS.filter(r => (r.created_at||'').startsWith(today));
+  const c = k => todayRows.filter(r => ocKind(r)===k).length;
+  document.getElementById('ocStats').innerHTML = `
+    <div class="log-stat">Entrées (jour)<b>${c('entry')}</b></div>
+    <div class="log-stat">Refusées (jour)<b>${c('reject')}</b></div>
+    <div class="log-stat">Plans bloqués<b>${c('block')}</b></div>
+    <div class="log-stat">Erreurs (jour)<b>${c('error')}</b></div>`;
+
+  const box = document.getElementById('ocList');
+  if(!filtered.length){ box.innerHTML = '<div class="empty">Aucun log OnlyCockpit</div>'; return; }
+  box.innerHTML = filtered.slice(0,100).map(r=>{
+    const t = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR') : '';
+    return `<div class="log-row"><span class="dot ${ocColor(r)}"></span>
+      <div class="body"><span class="ev">${esc(r.bot_name)}</span> <span class="t">${t}</span>
+      <div class="pl">${esc(r.message)}</div></div></div>`;
+  }).join('');
+}
+document.getElementById('ocBotFilter').addEventListener('change', renderOcLogs);
+document.getElementById('ocLevelFilter').addEventListener('change', renderOcLogs);
+loadOcLogs();
+setInterval(loadOcLogs, 10000);
 
 /* ============== DATE / TRADES / REVIEW ============== */
 let ALL_TRADES = [];
@@ -307,7 +442,7 @@ function renderHero(date){
     <div><div class="type">${label}</div>
     <div class="sum">O ${fmt(rev.open_price)} · H ${fmt(rev.high_price)} · L ${fmt(rev.low_price)} · C ${fmt(rev.close_price)}
      · range ${fmt(rev.range_total)} · ${rev.reversal_count ?? 0} retournement(s)</div>
-    ${rev.summary ? `<div class="sum">${rev.summary}</div>` : ''}</div></div>`;
+    ${rev.summary ? `<div class="sum">${esc(rev.summary)}</div>` : ''}</div></div>`;
 }
 
 function renderDayStats(date){
@@ -334,9 +469,9 @@ function renderDayStats(date){
     return `<div class="trow">
       <span class="tdir ${t.direction}">${t.direction === 'sell' ? 'Vente' : 'Achat'}</span>
       <span class="mono">${fmt(t.open_price)} → ${t.close_price!==null?fmt(t.close_price):'ouvert'}</span>
-      <span class="tplan">${t.matched_plan||'—'}</span>
+      <span class="tplan">${esc(t.matched_plan||'—')}</span>
       <span class="tpnl ${pnl===null?'':(pnl>=0?'pos':'neg')}">${pnl===null?'—':(pnl>=0?'+':'')+fmt(pnl)}</span>
-      <div class="tmeta">${t.bot_id||''} · #${t.ticket??''} · ${time} · ${t.match_method||''}</div>
+      <div class="tmeta">${esc(t.bot_id||'')} · #${t.ticket??''} · ${time} · ${esc(t.match_method||'')}</div>
     </div>`;
   }).join('');
 }
@@ -366,13 +501,13 @@ function renderAnalystVerdicts(date){
   const vClass = { correct:'v-correct', incorrect:'v-incorrect', pending:'v-pending', n_a:'v-na' };
   box.innerHTML = calls.map(c=>`
     <div class="av-row"><div class="hd">
-      <span class="who">${c.analyst_name}</span>
-      <span class="mono" style="color:var(--mut);font-size:10.5px">${c.direction||''}</span>
-      <span class="verdict ${vClass[c.verdict_direction]||'v-na'}">${c.verdict_direction||'n/a'}</span>
+      <span class="who">${esc(c.analyst_name)}</span>
+      <span class="mono" style="color:var(--mut);font-size:10.5px">${esc(c.direction||'')}</span>
+      <span class="verdict ${vClass[c.verdict_direction]||'v-na'}">${esc(c.verdict_direction||'n/a')}</span>
     </div>
     <div class="body mono">zone ${fmt(c.entry_zone_low)}–${fmt(c.entry_zone_high)} · SL ${fmt(c.sl)} · TP1 ${fmt(c.tp1)} · TP2 ${fmt(c.tp2)}
     ${c.score!==null?(' · score '+fmt(c.score)):''}</div>
-    ${c.note?`<div class="body">${c.note}</div>`:''}</div>`).join('');
+    ${c.note?`<div class="body">${esc(c.note)}</div>`:''}</div>`).join('');
 }
 
 /* ============== LEADERBOARD (agrégé depuis analyst_calls) ============== */
@@ -400,7 +535,7 @@ function renderLeaderboard(){
   box.innerHTML = rows.map((r,i) => {
     const color = r.acc===null ? 'var(--mut)' : r.acc>=0.6 ? 'var(--bull)' : r.acc>=0.4 ? 'var(--amber)' : 'var(--bear)';
     return `<div class="lb-row"><span class="rank">#${i+1}</span>
-      <span class="name">${r.name}</span>
+      <span class="name">${esc(r.name)}</span>
       <span class="stat">${r.correct}/${r.decided || 0}</span>
       <span class="acc" style="color:${color}">${r.acc!==null ? Math.round(r.acc*100)+'%' : '—'}</span>
       ${r.avgScore!==null ? `<span class="stat">${r.avgScore>0?'+':''}${fmt(r.avgScore)}</span>` : ''}
@@ -486,23 +621,32 @@ loadCore();
 /* ============== INDICATEURS VS RESULTATS (cockpit_trades) ============== */
 let CT_ROWS = [];
 const IND_DEFS = {
-  rsi14: { label: 'RSI(14)', buckets: [[0,30,'<30'],[30,45,'30–45'],[45,55,'45–55'],[55,70,'55–70'],[70,101,'>70']] },
-  stoch_k: { label: 'Stoch %K', buckets: [[0,20,'<20'],[20,40,'20–40'],[40,60,'40–60'],[60,80,'60–80'],[80,101,'>80']] },
-  macd_diff: { label: 'MACD (main−signal)', buckets: [[-999,-1,'<-1'],[-1,0,'-1–0'],[0,1,'0–1'],[1,999,'>1']] },
-  gate_aligned: { label: "Gate aligne (entree)", buckets: null },
-  entry_mode: { label: "Mode entree", buckets: null }
+  rsi14:       { label: 'RSI(14)',            buckets: [[0,30,'<30'],[30,45,'30–45'],[45,55,'45–55'],[55,70,'55–70'],[70,101,'>70']] },
+  stoch_k:     { label: 'Stoch %K (M15)',     buckets: [[0,20,'<20'],[20,40,'20–40'],[40,60,'40–60'],[60,80,'60–80'],[80,101,'>80']] },
+  stoch_m5_k:  { label: 'Stoch %K (M5)',      buckets: [[0,20,'<20'],[20,40,'20–40'],[40,60,'40–60'],[60,80,'60–80'],[80,101,'>80']] },
+  macd_diff:   { label: 'MACD (main−signal)', buckets: [[-999,-1,'<-1'],[-1,0,'-1–0'],[0,1,'0–1'],[1,999,'>1']] },
+  rr_planned:  { label: 'R/R prévu',          buckets: [[0,1.5,'<1.5'],[1.5,2,'1.5–2'],[2,3,'2–3'],[3,999,'>3']] },
+  duration_sec:{ label: 'Durée du trade',     buckets: [[0,300,'<5 min'],[300,1800,'5–30 min'],[1800,7200,'30 min–2 h'],[7200,999999,'>2 h']] },
+  gate_aligned:{ label: 'Gate aligné',        buckets: null },
+  h1_bias:     { label: 'Biais H1',           buckets: null },
+  entry_mode:  { label: "Mode d'entrée",      buckets: null },
+  chase_index: { label: "Rang de l'entrée",   buckets: null },
+  exit_reason: { label: 'Raison de sortie',   buckets: null }
 };
 let IND_ACTIVE = 'rsi14';
 
 async function loadIndicators(){
   try{
+    // status=eq.closed exclut nativement les fantômes ('shadow'/'shadow_closed')
     CT_ROWS = await sb('cockpit_trades?select=*&status=eq.closed&order=entry_time.desc&limit=500');
   }catch(e){
-    document.getElementById('indSummary').innerHTML = `<div class="empty err">${e.message}</div>`;
+    document.getElementById('indSummary').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
+    document.getElementById('anaBox').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
     return;
   }
   renderIndTabs();
   renderIndicators();
+  renderAnatomy();
 }
 function renderIndTabs(){
   const box = document.getElementById('indTabs');
@@ -513,13 +657,23 @@ function renderIndTabs(){
     el.addEventListener('click', ()=>{ IND_ACTIVE = el.dataset.k; renderIndTabs(); renderIndicators(); });
   });
 }
+/* v1.61 : certains champs vivent maintenant en colonne dédiée de cockpit_trades
+   (chase_index, exit_reason, rr_planned, duration_sec) et d'autres restent dans
+   le jsonb indicators_entry. On cherche dans les deux, jsonb d'abord. */
+function rawValue(t, key){
+  const ind = t.indicators_entry || {};
+  if(ind[key] !== undefined && ind[key] !== null) return ind[key];
+  if(t[key] !== undefined && t[key] !== null) return t[key];
+  return null;
+}
 function tradeValue(t, key){
   const ind = t.indicators_entry || {};
   if(key === 'macd_diff'){
     if(ind.macd_main===undefined || ind.macd_signal===undefined) return null;
     return ind.macd_main - ind.macd_signal;
   }
-  return ind[key] !== undefined ? ind[key] : null;
+  const v = rawValue(t, key);
+  return v === null ? null : parseFloat(v);
 }
 function renderIndicators(){
   const n = CT_ROWS.length;
@@ -538,8 +692,13 @@ function renderIndicators(){
     }
   } else {
     for(const t of CT_ROWS){
-      const raw = (t.indicators_entry||{})[IND_ACTIVE];
-      const label = raw===true ? 'oui' : raw===false ? 'non' : (raw ?? 'n/a');
+      const raw = rawValue(t, IND_ACTIVE);
+      let label;
+      if(raw===true) label = 'oui';
+      else if(raw===false) label = 'non';
+      else if(raw===null) label = 'n/a';
+      else if(IND_ACTIVE==='chase_index') label = Number(raw)===0 ? '1re entrée' : `entrée n°${Number(raw)+1}`;
+      else label = String(raw);
       if(!groups[label]) groups[label] = [];
       groups[label].push(t);
     }
@@ -550,7 +709,7 @@ function renderIndicators(){
     const wins = trades.filter(t=>parseFloat(t.profit)>0).length;
     const wr = nn ? Math.round((wins/nn)*100) : null;
     const color = wr===null ? 'var(--mut)' : wr>=60 ? 'var(--bull)' : wr>=40 ? 'var(--amber)' : 'var(--bear)';
-    return `<div class="ibucket"><div class="rng">${label}</div>
+    return `<div class="ibucket"><div class="rng">${esc(label)}</div>
       <div class="wr" style="color:${color}">${wr===null?'—':wr+'%'}</div>
       <div class="nn">${nn} trade${nn>1?'s':''}</div></div>`;
   }).join('');
@@ -558,6 +717,237 @@ function renderIndicators(){
   document.getElementById('indNote').textContent = `${n} trade(s) clôturé(s) analysé(s) au total (source cockpit_trades, bots OnlyCockpit). Win rate par tranche — les tranches avec peu de trades (<5) ne sont pas statistiquement fiables.`;
 }
 loadIndicators();
+
+/* ============== EFFICACITÉ DES FILTRES (trades fantômes) ==============
+   Le bot enregistre chaque entrée refusée par un filtre comme un trade sur
+   le papier (status 'shadow' puis 'shadow_closed'), avec le SL et le TP du
+   plan. On peut donc mesurer ce que chaque filtre a évité — et ce qu'il a
+   coûté. Ces lignes ont un ticket NÉGATIF et ne sont jamais mélangées aux
+   vrais trades : les autres cartes interrogent status=eq.closed. */
+const FILTER_LABELS = {
+  h1:            'Cohérence H1',
+  stoch_extreme: 'Stoch extrême',
+  momentum_m5:   'Momentum M5',
+  rr:            'R/R résiduel insuffisant'
+};
+
+let SHADOW_ROWS = [];
+
+async function loadShadows(){
+  try{
+    SHADOW_ROWS = await sb('cockpit_trades?select=*&refuse_filter=not.is.null&order=entry_time.desc&limit=500');
+  }catch(e){
+    document.getElementById('fltBox').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
+    return;
+  }
+  renderFilters();
+}
+
+function renderFilters(){
+  const box = document.getElementById('fltBox');
+  if(!SHADOW_ROWS.length){
+    box.innerHTML = `<div class="empty">Aucune entrée refusée enregistrée pour l'instant.<br>
+      Les fantômes apparaîtront dès que le bot v1.66 aura refusé une entrée.</div>`;
+    return;
+  }
+
+  const byFilter = {};
+  for(const r of SHADOW_ROWS){
+    const k = r.refuse_filter || 'autre';
+    (byFilter[k] = byFilter[k] || []).push(r);
+  }
+
+  const rows = Object.entries(byFilter).sort((a,b)=>b[1].length-a[1].length).map(([key, list])=>{
+    const label   = FILTER_LABELS[key] || key;
+    const total   = list.length;
+    const pending = list.filter(r=>r.status==='shadow').length;
+    const done    = list.filter(r=>r.status==='shadow_closed');
+    const wins    = done.filter(r=>r.exit_reason==='tp');
+    const losses  = done.filter(r=>r.exit_reason==='sl');
+    const timeout = done.filter(r=>r.exit_reason==='timeout');
+
+    // somme des R : ce que le filtre a fait gagner (positif) ou perdre (négatif)
+    const netR = done.reduce((s,r)=>s - (num(r.r_multiple)||0), 0);
+    const nDecided = wins.length + losses.length;
+    const pctWin = nDecided ? Math.round((wins.length/nDecided)*100) : null;
+
+    let verdict = 'verd-none', verdictTxt = 'à confirmer';
+    if(nDecided >= 5){
+      if(pctWin >= 60){ verdict='verd-bad';  verdictTxt='il te coûte'; }
+      else if(pctWin <= 40){ verdict='verd-good'; verdictTxt='il te protège'; }
+      else { verdict='verd-mid'; verdictTxt='neutre'; }
+    }
+
+    const wPct = nDecided ? (wins.length/nDecided)*100 : 0;
+    const lPct = nDecided ? (losses.length/nDecided)*100 : 0;
+
+    return `<div class="flt-row">
+      <div class="hd">
+        <span class="nm">${esc(label)}</span>
+        <span class="verd ${verdict}">${verdictTxt}</span>
+        <span class="cnt">${total} refus${pending?` · ${pending} en cours`:''}</span>
+      </div>
+      <div class="flt-split">
+        <i style="width:${wPct}%;background:var(--bear)"></i>
+        <i style="width:${lPct}%;background:var(--bull)"></i>
+      </div>
+      <div class="flt-legend">
+        <span>Auraient gagné <b style="color:var(--bear)">${wins.length}</b>${pctWin!==null?` (${pctWin}%)`:''}</span>
+        <span>Auraient perdu <b style="color:var(--bull)">${losses.length}</b></span>
+        ${timeout.length?`<span>Sans issue <b>${timeout.length}</b></span>`:''}
+      </div>
+      <div class="flt-net">${nDecided < 5
+        ? `Trop peu de cas tranchés (${nDecided}) pour conclure.`
+        : `Bilan : ce filtre t'a fait <b>${netR>=0?'gagner':'perdre'} ${fmt(Math.abs(netR))}R</b> au total.`}</div>
+    </div>`;
+  }).join('');
+
+  box.innerHTML = rows + `<div class="ind-note" style="margin-top:11px">
+    Chaque refus est rejoué contre le SL et le TP du plan, comme si le trade avait été pris.
+    Rouge = le filtre a bloqué un trade qui aurait atteint son TP (il t'a coûté).
+    Vert = il a bloqué un trade qui aurait touché son SL (il t'a protégé).
+    Les filtres s'évaluant en séquence, un refus est imputé au <b>premier</b> filtre qui a bloqué :
+    une entrée arrêtée par le momentum M5 n'atteint jamais le test H1.</div>`;
+}
+loadShadows();
+
+/* ============== ANATOMIE DES TRADES (v1.61) ==============
+   Exploite les colonnes ajoutées le 26/07 : exit_reason, mae, mfe,
+   rr_planned, chase_index, duration_sec, tp_price, sl_origin. */
+function avg(arr){ return arr.length ? arr.reduce((s,v)=>s+v,0)/arr.length : null; }
+function num(v){ const x = parseFloat(v); return isNaN(x) ? null : x; }
+function fmtDur(sec){
+  if(sec===null || sec===undefined || isNaN(sec)) return '—';
+  const s = Math.round(sec);
+  if(s < 60) return `${s} s`;
+  if(s < 3600) return `${Math.round(s/60)} min`;
+  return `${(s/3600).toFixed(1)} h`;
+}
+function statCell(label, value, sub, color){
+  return `<div class="dstat"><div class="k">${label}</div>
+    <div class="v" style="color:${color||'var(--txt)'}">${value}</div>
+    ${sub ? `<div class="s">${sub}</div>` : ''}</div>`;
+}
+function groupCell(tag, tagClass, trades, total){
+  const nn = trades.length;
+  const wins = trades.filter(t=>num(t.profit)>0).length;
+  const wr = nn ? Math.round((wins/nn)*100) : null;
+  const pnl = trades.reduce((s,t)=>s+(num(t.profit)||0),0);
+  const rs = trades.map(t=>num(t.r_multiple)).filter(v=>v!==null);
+  const avgR = avg(rs);
+  const share = total ? Math.round((nn/total)*100) : 0;
+  const barColor = wr===null ? 'var(--mut)' : wr>=60 ? 'var(--bull)' : wr>=40 ? 'var(--amber)' : 'var(--bear)';
+  return `<div class="ana-cell">
+    <div class="hd"><span class="tag ${tagClass}">${esc(tag)}</span><span class="cnt">${nn} · ${share}%</span></div>
+    <div class="ln"><span>Win rate</span><b style="color:${barColor}">${wr===null?'—':wr+'%'}</b></div>
+    <div class="ln"><span>P&amp;L cumulé</span><b style="color:${pnl>=0?'var(--bull)':'var(--bear)'}">${pnl>=0?'+':''}${fmt(pnl)}</b></div>
+    <div class="ln"><span>R moyen</span><b>${avgR===null?'—':(avgR>=0?'+':'')+fmt(avgR)}</b></div>
+    <div class="ana-bar"><i style="width:${share}%;background:${barColor}"></i></div>
+  </div>`;
+}
+
+function renderAnatomy(){
+  const box = document.getElementById('anaBox');
+  const rows = CT_ROWS;
+  if(!rows.length){ box.innerHTML = '<div class="empty">Aucun trade clôturé pour le moment</div>'; return; }
+
+  const total   = rows.length;
+  const winners = rows.filter(t=>num(t.profit)>0);
+  const losers  = rows.filter(t=>num(t.profit)<=0);
+
+  /* --- bandeau haut --- */
+  const rReal    = rows.map(t=>num(t.r_multiple)).filter(v=>v!==null);
+  const rPlanned = rows.map(t=>num(t.rr_planned)).filter(v=>v!==null && v>0);
+  const avgRReal = avg(rReal), avgRPlan = avg(rPlanned);
+  const durs     = rows.map(t=>num(t.duration_sec)).filter(v=>v!==null);
+  const netAll   = rows.reduce((s,t)=>s+(num(t.profit)||0),0);
+  const wrAll    = Math.round((winners.length/total)*100);
+
+  const top = `<div class="day-stats">
+    ${statCell('Trades clôturés', total, `${winners.length} gagnant(s)`)}
+    ${statCell('Win rate', wrAll+'%', null, wrAll>=50?'var(--bull)':'var(--bear)')}
+    ${statCell('P&amp;L cumulé', (netAll>=0?'+':'')+fmt(netAll), null, netAll>=0?'var(--bull)':'var(--bear)')}
+    ${statCell('R réalisé moy.', avgRReal===null?'—':(avgRReal>=0?'+':'')+fmt(avgRReal),
+               avgRPlan===null?null:`prévu ${fmt(avgRPlan)}`,
+               avgRReal===null?'var(--mut)':(avgRReal>=0?'var(--bull)':'var(--bear)'))}
+    ${statCell('Durée médiane', fmtDur(median(durs)), null)}
+  </div>`;
+
+  /* --- répartition par raison de sortie --- */
+  const REASONS = [['tp','TP touché','tag-tp'],['sl','SL touché','tag-sl'],
+                   ['manual','Sortie manuelle','tag-manual'],['unknown','Indéterminé','tag-unknown']];
+  const exitCells = REASONS.map(([key,label,cls])=>{
+    const g = rows.filter(t => (t.exit_reason||'unknown') === key);
+    return g.length ? groupCell(label, cls, g, total) : '';
+  }).filter(Boolean).join('');
+  const exitBlock = exitCells
+    ? `<div class="ana-sub">Comment les trades se terminent</div><div class="ana-grid">${exitCells}</div>`
+    : '';
+
+  /* --- zone vs chase, par rang d'entrée --- */
+  const byRank = {};
+  for(const t of rows){
+    const mode = t.entry_mode || (t.indicators_entry||{}).entry_mode || 'n/a';
+    const idx  = num(t.chase_index);
+    const key  = idx===null ? mode : `${mode}|${idx}`;
+    (byRank[key] = byRank[key] || []).push(t);
+  }
+  const rankCells = Object.entries(byRank).sort((a,b)=>a[0].localeCompare(b[0])).map(([key,g])=>{
+    const [mode, idx] = key.split('|');
+    const label = idx===undefined ? mode
+                : (Number(idx)===0 ? `${mode} · 1re` : `${mode} · n°${Number(idx)+1}`);
+    return groupCell(label, mode==='chase' ? 'tag-chase' : 'tag-zone', g, total);
+  }).join('');
+  const rankBlock = rankCells
+    ? `<div class="ana-sub">Entrée en zone vs chase, par rang</div><div class="ana-grid">${rankCells}</div>`
+    : '';
+
+  /* --- MAE / MFE : les deux chiffres qui disent si SL et TP sont bien placés --- */
+  const maeWin  = winners.map(t=>num(t.mae)).filter(v=>v!==null).map(Math.abs);
+  const mfeLose = losers.map(t=>num(t.mfe)).filter(v=>v!==null);
+  const maeLose = losers.map(t=>num(t.mae)).filter(v=>v!==null).map(Math.abs);
+  const mfeWin  = winners.map(t=>num(t.mfe)).filter(v=>v!==null);
+  const avgMaeWin = avg(maeWin), avgMfeLose = avg(mfeLose);
+  const avgMaeLose = avg(maeLose), avgMfeWin = avg(mfeWin);
+
+  const excBlock = (maeWin.length || mfeLose.length) ? `
+    <div class="ana-sub">Excursions — jusqu'où le prix est allé avant la sortie</div>
+    <div class="day-stats">
+      ${statCell('MAE des gagnants', avgMaeWin===null?'—':'-'+fmt(avgMaeWin),
+                 'creux moyen avant de payer', 'var(--amber)')}
+      ${statCell('MFE des perdants', avgMfeLose===null?'—':'+'+fmt(avgMfeLose),
+                 'profit laissé filer', 'var(--amber)')}
+      ${statCell('MAE des perdants', avgMaeLose===null?'—':'-'+fmt(avgMaeLose), null, 'var(--bear)')}
+      ${statCell('MFE des gagnants', avgMfeWin===null?'—':'+'+fmt(avgMfeWin), null, 'var(--bull)')}
+    </div>` : '';
+
+  /* --- lecture automatique des deux ratios --- */
+  const insights = [];
+  if(avgMaeWin!==null && avgMfeLose!==null){
+    insights.push(`Un trade gagnant passe en moyenne <b>${fmt(avgMaeWin)}</b> dans le rouge avant de payer : tout SL plus serré que ça coupe des trades qui auraient fini gagnants.`);
+    insights.push(`Un trade perdant atteint en moyenne <b>+${fmt(avgMfeLose)}</b> de profit latent avant de retourner. Si ce chiffre est proche de ton TP, le TP est trop loin ; s'il est proche de zéro, les entrées sont simplement à contresens.`);
+  }
+  if(avgRPlan!==null && avgRReal!==null){
+    const ecart = avgRPlan - avgRReal;
+    insights.push(`R/R prévu au moment de l'entrée : <b>${fmt(avgRPlan)}</b> · R réellement réalisé : <b>${fmt(avgRReal)}</b>. L'écart de <b>${fmt(ecart)}R</b> est le coût de tout ce qui se passe entre le plan et la sortie.`);
+  }
+  const nUnknown = rows.filter(t=>!t.exit_reason || t.exit_reason==='unknown').length;
+  if(nUnknown === total){
+    insights.push(`Aucune raison de sortie enregistrée : ces trades datent d'avant la v1.60 du bot. Les colonnes se rempliront à partir des prochaines clôtures.`);
+  }
+  const insightBlock = insights.length
+    ? `<div class="ana-insight">${insights.join('<br><br>')}</div>` : '';
+
+  box.innerHTML = top + exitBlock + rankBlock + excBlock + insightBlock +
+    `<div class="ind-note" style="margin-top:11px">MAE = plus forte excursion défavorable, MFE = plus forte excursion favorable, toutes deux en points de prix XAU/USD et mesurées tick par tick pendant la vie de la position. Sur moins de 20 trades clôturés, ces moyennes restent indicatives.</div>`;
+}
+
+function median(arr){
+  if(!arr.length) return null;
+  const s = [...arr].sort((a,b)=>a-b);
+  const m = Math.floor(s.length/2);
+  return s.length % 2 ? s[m] : (s[m-1]+s[m])/2;
+}
 </script>
 </body>
 </html>
