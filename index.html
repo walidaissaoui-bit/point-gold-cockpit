@@ -1,0 +1,514 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Point Gold · Cockpit</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.4/dist/chart.umd.min.js"></script>
+<script src="https://unpkg.com/lightweight-charts@4.1.3/dist/lightweight-charts.standalone.production.js"></script>
+<style>
+:root{--bg:#08090d;--bg2:#0c0e14;--panel:#11141c;--line:#222838;--txt:#e7e9f1;--mut:#7c8398;--gold:#ffce4a;--gold-dim:#c9a23c;--cyan:#3ad6cf;--bear:#ff506e;--bull:#2be58b;--amber:#ffb13d;--violet:#a98bff}
+*{box-sizing:border-box;margin:0;padding:0}
+body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:16px;letter-spacing:.1px;background:radial-gradient(900px 600px at 88% -8%,rgba(255,206,74,.07),transparent 60%),radial-gradient(700px 500px at -5% 110%,rgba(58,214,207,.05),transparent 55%),var(--bg);min-height:100vh}
+.mono{font-family:"JetBrains Mono",monospace}
+.wrap{max-width:920px;margin:0 auto}
+.top{display:flex;align-items:center;gap:12px;flex-wrap:wrap;padding:15px 18px;margin-bottom:14px;border:1px solid var(--line);border-radius:16px;background:linear-gradient(180deg,var(--panel),var(--bg2))}
+.brand h1{font-size:19px;font-weight:700;letter-spacing:1.4px}
+.brand h1 b{color:var(--gold);text-shadow:0 0 18px rgba(255,206,74,.5)}
+.brand .sub{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:2px;margin-top:3px}
+.top .spacer{flex:1}
+.win{font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--cyan);border:1px solid rgba(58,214,207,.4);background:rgba(58,214,207,.1);border-radius:999px;padding:6px 12px;text-align:center;line-height:1.35}
+.btn-refresh{background:var(--cyan);color:#000;border:0;border-radius:10px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:12px;letter-spacing:.5px;margin-right:12px}
+.btn-refresh:disabled{opacity:.5;cursor:wait}
+.tabs{display:flex;gap:8px;margin-right:4px}
+.tab{font-size:11px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;text-decoration:none;border:1px solid var(--line);border-radius:999px;padding:7px 14px;color:var(--mut)}
+.tab.active{color:var(--gold);border-color:rgba(255,206,74,.45);background:rgba(255,206,74,.08)}
+.tab:hover{color:var(--txt)}
+.card{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px;background:linear-gradient(180deg,var(--panel),var(--bg2))}
+.card h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:9px;margin-bottom:14px;font-weight:600;flex-wrap:wrap}
+.card h2 .ix{width:22px;height:22px;border-radius:7px;background:rgba(255,206,74,.12);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
+.card h2 .free{color:var(--mut);font-weight:400;text-transform:none;letter-spacing:.3px;font-size:11px}
+.live-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));gap:11px}
+.lcell{border:1px solid var(--line);border-radius:12px;padding:12px 13px;background:var(--bg2)}
+.lcell .ck{font-size:9.5px;letter-spacing:1.2px;text-transform:uppercase;color:var(--mut)}
+.lcell .cv{font-family:"JetBrains Mono",monospace;font-size:21px;font-weight:700;margin-top:6px;line-height:1.1}
+.lcell .cs{font-size:11px;color:var(--mut);margin-top:5px;line-height:1.4}
+.tag-bear{color:var(--bear)}.tag-bull{color:var(--bull)}.tag-neu{color:var(--amber)}.tag-gold{color:var(--gold)}
+.gate{display:flex;gap:14px;flex-wrap:wrap;align-items:stretch}
+.gate-verdict{flex:1;min-width:200px;border:1px solid rgba(255,177,61,.35);border-radius:12px;padding:14px 16px;background:rgba(255,177,61,.06);display:flex;flex-direction:column;justify-content:center}
+.gate-verdict .vv{font-size:20px;font-weight:700;color:var(--amber);letter-spacing:.5px}
+.gate-verdict .vs{font-size:12px;color:var(--mut);margin-top:6px;line-height:1.5}
+.gate-legs{flex:1;min-width:200px;display:flex;flex-direction:column;gap:9px}
+.leg{border:1px solid var(--line);border-radius:10px;padding:10px 12px;background:var(--bg2);display:flex;align-items:center;gap:10px}
+.leg .dot{width:9px;height:9px;border-radius:50%;flex-shrink:0}
+.leg .lt{font-size:12.5px;font-weight:600}
+.leg .lv{font-family:"JetBrains Mono",monospace;font-size:11.5px;color:var(--mut);margin-top:2px}
+.leg .lr{margin-left:auto;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.5px}
+.lvl-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:620px){.lvl-cols{grid-template-columns:1fr}}
+.lvl-col h3{font-size:11px;letter-spacing:1px;text-transform:uppercase;margin-bottom:9px;font-weight:600}
+.lrow{display:flex;align-items:center;gap:10px;padding:8px 11px;border:1px solid var(--line);border-radius:9px;background:var(--bg2);margin-bottom:7px}
+.lrow .px{font-family:"JetBrains Mono",monospace;font-size:15px;font-weight:700;min-width:66px}
+.lrow .dsc{font-size:11.5px;color:var(--mut);line-height:1.35}
+.lrow.key{border-color:rgba(255,206,74,.45);background:rgba(255,206,74,.05)}
+.an-cols{display:grid;grid-template-columns:1fr 1fr;gap:14px}
+@media(max-width:620px){.an-cols{grid-template-columns:1fr}}
+.an-box{border:1px solid var(--line);border-radius:12px;padding:13px 14px;background:var(--bg2)}
+.an-box.bear{border-color:rgba(255,80,110,.3)}
+.an-box.bull{border-color:rgba(43,229,139,.3)}
+.an-box .anh{font-size:12px;font-weight:700;letter-spacing:.5px;margin-bottom:10px;display:flex;align-items:center;gap:7px}
+.an-item{font-size:12px;line-height:1.5;margin-bottom:9px;padding-left:11px;border-left:2px solid var(--line)}
+.an-item .who{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--gold-dim);display:block;margin-bottom:2px}
+.synth{margin-top:13px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;font-size:12.5px;line-height:1.6;color:var(--mut)}
+.synth b{color:var(--txt)}
+.plans-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
+@media(max-width:620px){.plans-grid{grid-template-columns:1fr}}
+.pcard{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg2)}
+.pcard.buy{border-color:rgba(43,229,139,.32)}
+.pcard.sell{border-color:rgba(255,80,110,.32)}
+.pcard-h{padding:11px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);flex-wrap:wrap}
+.pcard.buy .pcard-h{background:rgba(43,229,139,.07)}
+.pcard.sell .pcard-h{background:rgba(255,80,110,.07)}
+.pname{font-weight:700;font-size:14px}
+.pdir{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:1px;padding:3px 8px;border-radius:6px}
+.pdir.buy{color:var(--bull);background:rgba(43,229,139,.12)}
+.pdir.sell{color:var(--bear);background:rgba(255,80,110,.12)}
+.prole{font-size:11px;color:var(--mut);margin-left:auto;text-align:right}
+.pcard-b{padding:12px 14px}
+.pline{display:flex;gap:9px;font-size:12px;line-height:1.5;margin-bottom:7px}
+.pline .pk{color:var(--mut);min-width:66px;flex-shrink:0;text-transform:uppercase;font-size:10px;letter-spacing:.5px;padding-top:2px}
+.pline .pv{font-family:"JetBrains Mono",monospace}
+.pline .pv.inval{color:var(--bear)}
+.foot{font-size:11px;color:var(--mut);line-height:1.7;text-align:center;padding:6px 10px 2px}
+.foot b{color:var(--gold-dim)}
+.discl{font-size:12px;color:var(--mut);line-height:1.6}
+.bot-bridge{border:1px solid rgba(58,214,207,.3);border-radius:13px;padding:14px;background:rgba(58,214,207,.04);margin-top:12px}
+.bot-bridge h3{font-size:12px;letter-spacing:1px;text-transform:uppercase;color:var(--cyan);margin-bottom:10px;font-weight:600}
+.bot-inputs{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:12px}
+.bot-input{display:flex;flex-direction:column}
+.bot-input label{font-size:10px;letter-spacing:.8px;text-transform:uppercase;color:var(--mut);margin-bottom:4px}
+.bot-input input{background:var(--bg2);border:1px solid var(--line);border-radius:8px;color:var(--txt);padding:8px 10px;font-family:"JetBrains Mono",monospace;font-size:13px;font-weight:600}
+.bot-ctrls{display:flex;gap:10px;flex-wrap:wrap}
+.btn-send{background:var(--cyan);color:#000;border:0;border-radius:10px;padding:10px 16px;font-weight:600;cursor:pointer;font-size:12px;letter-spacing:.5px}
+.btn-send:hover{background:#5ae8e4}
+.bot-status{margin-top:10px;font-size:11px;min-height:18px}
+.err{color:var(--bear)}
+.chart-wrap{position:relative;width:100%;height:180px}
+.chart-wrap.small{height:100px;margin-top:10px}
+.chart-empty{font-size:12px;color:var(--mut);text-align:center;padding:20px 0}
+.lvl-col h3.clickable{cursor:pointer;user-select:none;display:flex;align-items:center;justify-content:space-between;gap:8px}
+.lvl-col h3.clickable:hover{color:var(--txt)}
+.lvl-toggle{font-size:10px;color:var(--mut)}
+.lvl-list{display:none}
+.lvl-list.open{display:block}
+.fund-events{display:flex;flex-direction:column;gap:8px;margin-bottom:10px}
+.fund-ev{border:1px solid var(--line);border-radius:10px;padding:9px 11px;background:var(--bg2);font-size:12px;line-height:1.5}
+.fund-ev .fdate{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--gold-dim);display:block;margin-bottom:2px}
+.fund-bias{display:inline-block;font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.8px;padding:4px 10px;border-radius:999px;margin-bottom:10px}
+.fund-bias.haussier{color:var(--bull);background:rgba(43,229,139,.12)}
+.fund-bias.baissier{color:var(--bear);background:rgba(255,80,110,.12)}
+.fund-bias.neutre{color:var(--amber);background:rgba(255,177,61,.12)}
+</style>
+</head>
+<body>
+<div class="wrap">
+<div class="top">
+<div class="brand"><h1>POINT <b>GOLD</b></h1><div class="sub">XAU/USD · Méthode v3.x</div></div>
+<div class="spacer"></div>
+<nav class="tabs"><a class="tab active" href="/">Cockpit</a><a class="tab" href="/revue.html">Revue</a></nav>
+<button class="btn-refresh" id="btnMaj" onclick="triggerUpdate()">🔄 Mettre à jour</button>
+<div class="win">Dernière génération<br><span style="font-size:12px;font-weight:700;letter-spacing:.5px" id="genAt">—</span></div>
+</div>
+<div class="card">
+<h2><span class="ix">◉</span> Snapshot live <span class="free" id="live-sub">chargement…</span></h2>
+<div class="live-grid" id="live-grid"><div class="lcell"><div class="ck">chargement…</div></div></div>
+</div>
+<div class="card">
+<h2><span class="ix">⛬</span> Gate méthode M15 <span class="free">· Stoch(5,3,3) + EMA5/EMA8 · bougies clôturées</span></h2>
+<div class="gate" id="gate-box"><div class="gate-verdict"><div class="vv">—</div></div></div>
+</div>
+<div class="card">
+<h2><span class="ix">📈</span> Graphique M15 <span class="free" id="chart-sub">· prix + EMA5/EMA8 (haut) · Stoch(5,3,3) (bas)</span></h2>
+<div class="chart-wrap"><canvas id="chart-price"></canvas></div>
+<div class="chart-wrap small"><canvas id="chart-stoch"></canvas></div>
+</div>
+<div class="card">
+<h2><span class="ix">▦</span> Niveaux clés <span class="free">· structure du jour + niveaux multi-analystes · graphique M5, 50 dernières bougies</span></h2>
+<div class="lvl-cols">
+<div class="lvl-col"><h3 class="tag-bear clickable" onclick="toggleLevels('res')">▲ Résistances <span class="lvl-toggle" id="lvl-toggle-res">déplier ▾</span></h3><div id="lvl-res" class="lvl-list"></div></div>
+<div class="lvl-col"><h3 class="tag-bull clickable" onclick="toggleLevels('sup')">▼ Supports <span class="lvl-toggle" id="lvl-toggle-sup">déplier ▾</span></h3><div id="lvl-sup" class="lvl-list"></div></div>
+</div>
+<div class="chart-wrap" id="chart-levels" style="margin-top:14px;height:280px"></div>
+</div>
+<div class="card">
+<h2><span class="ix">✉</span> Synthèse mails <span class="free">· TradingView · dernières 24h</span></h2>
+<div class="an-cols" id="an-cols"></div>
+<div class="synth" id="an-synth">—</div>
+</div>
+<div class="card">
+<h2><span class="ix">🌐</span> Fondamental <span class="free" id="fund-sub">· calendrier macro + news sentiment</span></h2>
+<div id="fund-bias-box"></div>
+<div class="fund-events" id="fund-events"></div>
+<div class="synth" id="fund-synth">—</div>
+</div>
+<div class="card">
+<h2><span class="ix">🎯</span> Plans A / B / C / D <span class="free">· gate alignée obligatoire — pas de contrainte horaire, le setup prime</span></h2>
+<div class="plans-grid" id="plans-grid"></div>
+</div>
+<div class="card">
+<h2><span class="ix">🔗</span> Envoi au bot XAU</h2>
+<div class="bot-bridge">
+<h3>VP du jour (préremplis depuis le live — ajuster si besoin avant envoi)</h3>
+<div class="bot-inputs">
+<div class="bot-input"><label>VAL</label><input type="number" id="vp-val" step="0.01" placeholder="ex 4050.0"></div>
+<div class="bot-input"><label>POC</label><input type="number" id="vp-poc" step="0.01" placeholder="ex 4111.0"></div>
+<div class="bot-input"><label>VAH</label><input type="number" id="vp-vah" step="0.01" placeholder="ex 4145.0"></div>
+</div>
+<div class="bot-ctrls">
+<button class="btn-send" onclick="sendToBotNow()">📤 Envoyer au bot maintenant</button>
+<button class="btn-send" style="background:var(--amber);color:#000" onclick="deactivatePlan()">✕ Désactiver le plan</button>
+</div>
+<div class="bot-status" id="bot-status"></div>
+<div style="font-size:10px;color:var(--mut);margin-top:8px;line-height:1.5">• Laisse vide = le bot utilisera son VP auto<br>• Remplis = override le VP du bot jusqu'à la prochaine MAJ<br>• Clique "Envoyer" = plan envoyé à Supabase, bot chargera dans ~60s</div>
+</div>
+<div class="bot-bridge" style="margin-top:14px;border-color:rgba(169,139,255,.35);background:rgba(169,139,255,.05)">
+<h3 style="color:var(--violet)">🆕 Plan Feed — filtre de confirmation (table <span class="mono">plan_feed</span>)</h3>
+<div style="font-size:11px;color:var(--mut);line-height:1.6;margin-bottom:10px">Envoie les 4 plans du jour (zones, cibles, invalidations) tels qu'affichés ci-dessus. Ne remplace pas la logique autonome du bot — sert de <b style="color:var(--txt)">filtre supplémentaire</b> : le bot continue de détecter ses propres setups (BOS, OTE...) et vérifie en plus que le prix est dans une zone validée ici, avec la bonne direction.</div>
+<pre id="plan-feed-preview" style="font-size:10px;color:var(--mut);background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;margin-bottom:10px;max-height:160px"></pre>
+<div class="bot-ctrls">
+<button class="btn-send" style="background:var(--violet);color:#000" onclick="sendPlanFeed()">📤 Envoyer les plans (plan_feed)</button>
+<button class="btn-send" style="background:var(--amber);color:#000" onclick="deactivatePlanFeed()">✕ Désactiver le plan_feed</button>
+</div>
+<div class="bot-status" id="plan-feed-status"></div>
+</div>
+</div>
+<div class="card">
+<h2><span class="ix">⚑</span> Rappels discipline</h2>
+<div class="discl" id="discipline-box">—</div>
+</div>
+<div id="statusLine" class="bot-status" style="text-align:center;margin-bottom:10px"></div>
+<div class="foot" id="foot-box">Point Gold · généré automatiquement (Gmail + Twelve Data + Claude) · Source : Supabase <b>cockpit_state</b>.</div>
+</div>
+<script>
+const SB_URL = "https://bddqezljktjzjfxgwvzk.supabase.co";
+const SB_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImJkZHFlemxqa3RqempmeGd3dnprIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODMxNzUzOTcsImV4cCI6MjA5ODc1MTM5N30.9IdGpbD-UghPAvPRSJQKod2fjYJlNTNXu6bGe6aTmg0";
+const REFRESH_SECRET = "39214b87c459b7946ad4b678e0b153ea1aeaea94ec86d78c";
+let CURRENT_ROW = null;
+let priceChart = null;
+let stochChart = null;
+function fmt(n){ return (n===null||n===undefined||isNaN(n)) ? '—' : Number(n).toFixed(2); }
+function fmtRange(arr){ if(!Array.isArray(arr)) return '—'; return arr.map(v => v===null||v===undefined ? '—' : fmt(v)).join('–'); }
+function fmtTargets(arr){ if(!Array.isArray(arr)) return '—'; return arr.map(fmt).join(' · '); }
+function fmtTimeLabel(dt){
+  if(!dt) return '';
+  const parts = String(dt).split(' ');
+  const t = parts[1] || parts[0];
+  return t.slice(0,5);
+}
+async function fetchLatest(){
+  const res = await fetch(`${SB_URL}/rest/v1/cockpit_state?bot_id=eq.XAU&order=generated_at.desc&limit=1`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+  const rows = await res.json();
+  return rows[0] || null;
+}
+async function fetchLatestFundamental(){
+  try{
+    const res = await fetch(`${SB_URL}/rest/v1/fundamental_state?bot_id=eq.XAU&order=generated_at.desc&limit=1`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+    const rows = await res.json();
+    return rows[0] || null;
+  }catch(e){ return null; }
+}
+function renderFundamental(row){
+  const subEl = document.getElementById('fund-sub');
+  const biasBox = document.getElementById('fund-bias-box');
+  const evBox = document.getElementById('fund-events');
+  const synthBox = document.getElementById('fund-synth');
+  if(!row || row.status === 'error' || !row.fundamental_summary){
+    if(subEl) subEl.textContent = '· pas encore de données — clique "Mettre à jour"';
+    biasBox.innerHTML = '';
+    evBox.innerHTML = '';
+    synthBox.textContent = '—';
+    return;
+  }
+  if(subEl) subEl.textContent = `· actualisé ${row.generated_at ? new Date(row.generated_at).toLocaleString('fr-FR') : '—'}`;
+  const s = row.fundamental_summary || {};
+  const biasClass = (s.bias || 'neutre').toLowerCase();
+  biasBox.innerHTML = `<span class="fund-bias ${biasClass}">${s.bias || 'neutre'}</span>`;
+  const events = Array.isArray(s.upcoming_events) ? s.upcoming_events : [];
+  evBox.innerHTML = events.map(e => `<div class="fund-ev"><span class="fdate">${e.date||''}</span><b>${e.event||''}</b> — ${e.why_it_matters||''}</div>`).join('') || '<div class="fund-ev">Aucun événement majeur détecté sur la fenêtre</div>';
+  const parts = [];
+  if(s.sentiment_summary) parts.push(`<b>Sentiment :</b> ${s.sentiment_summary}`);
+  if(s.risk_note) parts.push(`<b>Risque :</b> ${s.risk_note}`);
+  if(s.summary) parts.push(`<b>Net :</b> ${s.summary}`);
+  synthBox.innerHTML = parts.join('<br><br>') || '—';
+}
+function renderChart(chart){
+  const priceEl = document.getElementById('chart-price');
+  const stochEl = document.getElementById('chart-stoch');
+  const sub = document.getElementById('chart-sub');
+  if(!chart || !Array.isArray(chart.labels) || !chart.labels.length){
+    if(priceChart){ priceChart.destroy(); priceChart = null; }
+    if(stochChart){ stochChart.destroy(); stochChart = null; }
+    if(sub) sub.textContent = '· pas encore de données — clique "Mettre à jour"';
+    return;
+  }
+  if(sub) sub.textContent = '· prix + EMA5/EMA8 (haut) · Stoch(5,3,3) (bas)';
+  const labels = chart.labels.map(fmtTimeLabel);
+  const n = labels.length;
+  const commonScales = {
+    x:{ ticks:{ color:'#7c8398', font:{ size:9 }, maxRotation:0, autoSkip:true, maxTicksLimit:8 }, grid:{ color:'#1a1e2a' } },
+  };
+  if(priceChart) priceChart.destroy();
+  priceChart = new Chart(priceEl.getContext('2d'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'Prix', data:chart.price, borderColor:'#ffce4a', backgroundColor:'transparent', pointRadius:0, borderWidth:1.6, tension:.15, spanGaps:true },
+      { label:'EMA5', data:chart.ema5, borderColor:'#3ad6cf', backgroundColor:'transparent', pointRadius:0, borderWidth:1.3, tension:.15, spanGaps:true },
+      { label:'EMA8', data:chart.ema8, borderColor:'#a98bff', backgroundColor:'transparent', pointRadius:0, borderWidth:1.3, tension:.15, spanGaps:true }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ labels:{ color:'#7c8398', font:{ size:10 }, boxWidth:14 } } },
+      scales: Object.assign({}, commonScales, { y:{ ticks:{ color:'#7c8398', font:{ size:9 } }, grid:{ color:'#1a1e2a' } } })
+    }
+  });
+  if(stochChart) stochChart.destroy();
+  stochChart = new Chart(stochEl.getContext('2d'), {
+    type:'line',
+    data:{ labels, datasets:[
+      { label:'%K', data:chart.stoch_k, borderColor:'#3ad6cf', backgroundColor:'transparent', pointRadius:0, borderWidth:1.4, tension:.15, spanGaps:true },
+      { label:'%D', data:chart.stoch_d, borderColor:'#ffb13d', backgroundColor:'transparent', pointRadius:0, borderWidth:1.4, tension:.15, spanGaps:true },
+      { label:'Surachat 80', data:Array(n).fill(80), borderColor:'rgba(255,80,110,.4)', borderDash:[4,4], pointRadius:0, borderWidth:1 },
+      { label:'Survente 20', data:Array(n).fill(20), borderColor:'rgba(43,229,139,.4)', borderDash:[4,4], pointRadius:0, borderWidth:1 }
+    ]},
+    options:{
+      responsive:true, maintainAspectRatio:false,
+      interaction:{ mode:'index', intersect:false },
+      plugins:{ legend:{ labels:{ color:'#7c8398', font:{ size:10 }, boxWidth:14 } } },
+      scales: Object.assign({}, commonScales, { y:{ min:0, max:100, ticks:{ color:'#7c8398', font:{ size:9 }, stepSize:20 }, grid:{ color:'#1a1e2a' } } })
+    }
+  });
+}
+let levelsChart = null;
+let levelsSeries = null;
+let priceMarkerSeries = null;
+const LVL_OPEN = { res:false, sup:false };
+function toggleLevels(type){
+  LVL_OPEN[type] = !LVL_OPEN[type];
+  const list = document.getElementById(`lvl-${type}`);
+  const toggle = document.getElementById(`lvl-toggle-${type}`);
+  if(list) list.classList.toggle('open', LVL_OPEN[type]);
+  if(toggle) toggle.textContent = LVL_OPEN[type] ? 'replier ▴' : 'déplier ▾';
+}
+function renderLevelsChart(chart, levels, curPriceFallback){
+  const el = document.getElementById('chart-levels');
+  if(!el) return;
+  if(!chart || !Array.isArray(chart.candles) || !chart.candles.length){
+    if(levelsChart){ levelsChart.remove(); levelsChart = null; levelsSeries = null; priceMarkerSeries = null; }
+    el.innerHTML = '<div class="chart-empty">Pas encore de données — clique "Mettre à jour"</div>';
+    return;
+  }
+  el.innerHTML = '';
+  if(!levelsChart){
+    levelsChart = LightweightCharts.createChart(el, {
+      layout: { background: { color: 'transparent' }, textColor: '#7c8398', fontSize: 10, fontFamily: 'JetBrains Mono, monospace' },
+      grid: { vertLines: { color: '#1a1e2a' }, horzLines: { color: '#1a1e2a' } },
+      rightPriceScale: { borderColor: '#222838' },
+      leftPriceScale: { visible: true, borderColor: '#222838' },
+      timeScale: { borderColor: '#222838', timeVisible: true, secondsVisible: false },
+      crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+      autoSize: true,
+    });
+    levelsSeries = levelsChart.addCandlestickSeries({
+      priceScaleId: 'right',
+      upColor: '#2be58b', downColor: '#ff506e', borderVisible: false,
+      wickUpColor: '#2be58b', wickDownColor: '#ff506e',
+    });
+    priceMarkerSeries = levelsChart.addLineSeries({
+      priceScaleId: 'left',
+      color: 'rgba(0,0,0,0)', lineWidth: 1,
+      lastValueVisible: false, priceLineVisible: false, crosshairMarkerVisible: false,
+    });
+  }
+  levelsSeries.setData(chart.candles);
+  (levelsSeries.priceLines || []).forEach((pl) => levelsSeries.removePriceLine(pl));
+  levelsSeries.priceLines = [];
+  (priceMarkerSeries.priceLines || []).forEach((pl) => priceMarkerSeries.removePriceLine(pl));
+  priceMarkerSeries.priceLines = [];
+  const lv = levels || {};
+  const lastCandle = chart.candles[chart.candles.length - 1];
+  const curPrice = lastCandle ? lastCandle.close : curPriceFallback;
+  priceMarkerSeries.setData(chart.candles.map((c) => ({ time: c.time, value: curPrice })));
+  if(curPrice != null && !isNaN(curPrice)){
+    priceMarkerSeries.priceLines.push(priceMarkerSeries.createPriceLine({
+      price: curPrice, color: '#3ad6cf', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dotted,
+      axisLabelVisible: true, title: `Prix ${fmt(curPrice)}`,
+    }));
+  }
+  (lv.resistances||[]).slice(0,4).forEach((r) => {
+    if(r.price == null || isNaN(r.price)) return;
+    levelsSeries.priceLines.push(levelsSeries.createPriceLine({
+      price: r.price, color: '#ff506e', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true, title: `R ${fmt(r.price)}`,
+    }));
+  });
+  (lv.supports||[]).slice(0,4).forEach((s) => {
+    if(s.price == null || isNaN(s.price)) return;
+    levelsSeries.priceLines.push(levelsSeries.createPriceLine({
+      price: s.price, color: '#2be58b', lineWidth: 1, lineStyle: LightweightCharts.LineStyle.Dashed,
+      axisLabelVisible: true, title: `S ${fmt(s.price)}`,
+    }));
+  });
+  levelsChart.timeScale().fitContent();
+}
+function render(row){
+  const statusLine = document.getElementById('statusLine');
+  if(!row){ statusLine.innerHTML = '<span class="err">Aucune donnée pour le moment.</span>'; return; }
+  CURRENT_ROW = row;
+  if(row.status === 'error'){ statusLine.innerHTML = `<span class="err">Dernière tentative en échec : ${row.error||'erreur inconnue'}</span>`; } else { statusLine.innerHTML = ''; }
+  document.getElementById('genAt').textContent = row.generated_at ? new Date(row.generated_at).toLocaleString('fr-FR') : '—';
+  const changeTag = (row.change||0) >= 0 ? 'tag-bull' : 'tag-bear';
+  document.getElementById('live-sub').textContent = `· actualisé ${row.generated_at ? new Date(row.generated_at).toLocaleString('fr-FR') : '—'}`;
+  document.getElementById('live-grid').innerHTML = `
+    <div class="lcell"><div class="ck">Prix XAU/USD</div><div class="cv ${changeTag}">${fmt(row.price)}</div><div class="cs ${changeTag}">${fmt(row.change)} $ / ${fmt(row.change_pct)}% vs clôture veille (${fmt(row.prev_close)})</div></div>
+    <div class="lcell"><div class="ck">Range du jour</div><div class="cv" style="font-size:15px">${fmt(row.day_low)} → ${fmt(row.day_high)}</div><div class="cs tag-neu">ouverture ${fmt(row.day_open)}</div></div>
+    <div class="lcell"><div class="ck">Gate M15</div><div class="cv" style="font-size:14px">${row.gate_verdict || '—'}</div><div class="cs">Stoch %K ${fmt(row.stoch_k)} · %D ${fmt(row.stoch_d)}</div></div>
+    <div class="lcell"><div class="ck">EMA5 / EMA8</div><div class="cv" style="font-size:15px">${fmt(row.ema5)} / ${fmt(row.ema8)}</div><div class="cs">${row.ema5 > row.ema8 ? 'alignement haussier' : 'alignement baissier'}</div></div>`;
+  const verdictUp = (row.gate_verdict||'').toUpperCase();
+  let verdictColor = 'var(--amber)';
+  if(verdictUp.includes('ACHAT') || verdictUp.includes('BUY')) verdictColor = 'var(--bull)';
+  else if(verdictUp.includes('VENTE') || verdictUp.includes('SELL')) verdictColor = 'var(--bear)';
+  const stochBull = (row.stoch_k||0) > (row.stoch_d||0);
+  const emaBull = (row.ema5||0) > (row.ema8||0);
+  document.getElementById('gate-box').innerHTML = `
+    <div class="gate-verdict" style="border-color:${verdictColor}55;background:${verdictColor}11"><div class="vv" style="color:${verdictColor}">${row.gate_verdict || '—'}</div><div class="vs">${row.gate_detail || ''}</div></div>
+    <div class="gate-legs">
+      <div class="leg"><span class="dot" style="background:${stochBull ? 'var(--bull)' : 'var(--bear)'}"></span><div><div class="lt">Stoch(5,3,3)</div><div class="lv">%K ${fmt(row.stoch_k)} · %D ${fmt(row.stoch_d)}</div></div><span class="lr" style="color:${stochBull ? 'var(--bull)' : 'var(--bear)'}">${stochBull ? 'Haussier' : 'Baissier'}</span></div>
+      <div class="leg"><span class="dot" style="background:${emaBull ? 'var(--bull)' : 'var(--bear)'}"></span><div><div class="lt">EMA5 / EMA8</div><div class="lv">${fmt(row.ema5)} / ${fmt(row.ema8)}</div></div><span class="lr" style="color:${emaBull ? 'var(--bull)' : 'var(--bear)'}">${emaBull ? 'Aligné haussier' : 'Aligné baissier'}</span></div>
+    </div>`;
+  renderChart(row.chart);
+  const lv = row.levels || {resistances:[],supports:[]};
+  document.getElementById('lvl-res').innerHTML = (lv.resistances||[]).map((r,i) => `<div class="lrow ${i===0?'key':''}"><span class="px tag-bear">${fmt(r.price)}</span><span class="dsc">${r.desc||''}</span></div>`).join('') || '<div class="lrow"><span class="dsc">—</span></div>';
+  document.getElementById('lvl-sup').innerHTML = (lv.supports||[]).map((r,i) => `<div class="lrow ${i===0?'key':''}"><span class="px tag-bull">${fmt(r.price)}</span><span class="dsc">${r.desc||''}</span></div>`).join('') || '<div class="lrow"><span class="dsc">—</span></div>';
+  renderLevelsChart(row.chart, lv, row.price);
+  const an = row.analyst_synthesis || {};
+  const bear = an.bear || [];
+  const bull = an.bull || [];
+  let anHtml = '';
+  if(bear.length || bull.length){
+    anHtml += `<div class="an-box bear"><div class="anh tag-bear">🔻 Camp vendeur</div>` + (bear.map(item => `<div class="an-item"><span class="who">${item.who||''}</span>${item.note||''}</div>`).join('') || '<div class="an-item">—</div>') + `</div>`;
+    anHtml += `<div class="an-box bull"><div class="anh tag-bull">🔺 Camp acheteur</div>` + (bull.map(item => `<div class="an-item"><span class="who">${item.who||''}</span>${item.note||''}</div>`).join('') || '<div class="an-item">—</div>') + `</div>`;
+  }
+  document.getElementById('an-cols').innerHTML = anHtml;
+  document.getElementById('an-synth').innerHTML = an.summary ? `<b>Net :</b> ${an.summary}` : '—';
+  const plans = row.plans || {};
+  document.getElementById('plans-grid').innerHTML = ['A','B','C','D'].map(k => {
+    const p = plans[k];
+    if(!p) return '';
+    const dirClass = p.dir === 'sell' ? 'sell' : 'buy';
+    const dirLabel = p.dir === 'sell' ? 'Vente' : 'Achat';
+    return `<div class="pcard ${dirClass}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div></div></div>`;
+  }).join('');
+  document.getElementById('discipline-box').textContent = row.discipline || '—';
+  if(!document.getElementById('vp-val').value) document.getElementById('vp-val').value = row.day_low ?? '';
+  if(!document.getElementById('vp-poc').value) document.getElementById('vp-poc').value = row.price ?? '';
+  if(!document.getElementById('vp-vah').value) document.getElementById('vp-vah').value = row.day_high ?? '';
+  renderPlanFeedPreview();
+  document.getElementById('foot-box').innerHTML = `Point Gold · généré automatiquement (Gmail + Twelve Data + Claude) · dernière génération ${row.generated_at ? new Date(row.generated_at).toLocaleString('fr-FR') : '—'} · Source : Supabase <b>cockpit_state</b>.`;
+}
+async function loadAll(){
+  try { render(await fetchLatest()); }
+  catch(e){ document.getElementById('statusLine').innerHTML = `<span class="err">${e.message}</span>`; }
+  try { renderFundamental(await fetchLatestFundamental()); }
+  catch(e){ /* non-bloquant */ }
+}
+async function triggerUpdate(){
+  const btn = document.getElementById('btnMaj');
+  btn.disabled = true; btn.textContent = '⏳ Mise à jour...';
+  try{
+    const url = `/api/refresh-cockpit?manual=1&secret=${encodeURIComponent(REFRESH_SECRET)}`;
+    const fundUrl = `/api/fetch-fundamental?manual=1&secret=${encodeURIComponent(REFRESH_SECRET)}`;
+    const [res] = await Promise.all([
+      fetch(url, { method:'POST' }),
+      fetch(fundUrl, { method:'POST' }).catch(() => null)
+    ]);
+    const data = await res.json();
+    if(!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    await loadAll();
+  }catch(e){
+    document.getElementById('statusLine').innerHTML = `<span class="err">Échec MAJ : ${e.message}</span>`;
+  }finally{
+    btn.disabled = false; btn.textContent = '🔄 Mettre à jour';
+  }
+}
+async function sendToBotNow(){
+  const val = parseFloat(document.getElementById('vp-val').value);
+  const poc = parseFloat(document.getElementById('vp-poc').value);
+  const vah = parseFloat(document.getElementById('vp-vah').value);
+  const status = document.getElementById('bot-status');
+  if(!val || !poc || !vah){ status.innerHTML = '<span style="color:var(--amber)">⚠ Remplis VAL/POC/VAH avant d\'envoyer</span>'; return; }
+  status.innerHTML = '<span style="color:var(--cyan)">📤 Envoi en cours...</span>';
+  try {
+    const payload = { bot_id: 'XAU', plan_date: new Date().toISOString().split('T')[0], val: val, poc: poc, vah: vah, bias: '', allow_plans: 'A,B,C,D', note: 'Cockpit du jour (auto)', active: true };
+    await fetch(`${SB_URL}/rest/v1/daily_plans?bot_id=eq.XAU&active=eq.true`, { method: 'PATCH', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }) });
+    const res = await fetch(`${SB_URL}/rest/v1/daily_plans`, { method: 'POST', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify(payload) });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    status.innerHTML = '<span style="color:var(--bull)">✓ Plan envoyé! Bot le chargera dans ~60s</span>';
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
+  }
+}
+async function deactivatePlan(){
+  const status = document.getElementById('bot-status');
+  status.innerHTML = '<span style="color:var(--cyan)">⏹ Désactivation...</span>';
+  try {
+    await fetch(`${SB_URL}/rest/v1/daily_plans?bot_id=eq.XAU&active=eq.true`, { method: 'PATCH', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }) });
+    status.innerHTML = '<span style="color:var(--bull)">✓ Plan désactivé — bot repasse VP auto</span>';
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
+  }
+}
+function buildPlansData(){
+  const plans = (CURRENT_ROW && CURRENT_ROW.plans) || {};
+  const out = {};
+  ['A','B','C','D'].forEach(k => {
+    const p = plans[k];
+    if(!p) return;
+    out[k] = { dir: p.dir, zone: p.zone, trigger: p.trigger, targets: p.targets, invalid: p.invalid };
+  });
+  return out;
+}
+function renderPlanFeedPreview(){
+  const pre = document.getElementById('plan-feed-preview');
+  if(pre) pre.textContent = JSON.stringify(buildPlansData(), null, 2);
+}
+async function sendPlanFeed(){
+  const status = document.getElementById('plan-feed-status');
+  status.innerHTML = '<span style="color:var(--cyan)">📤 Envoi en cours...</span>';
+  try {
+    await fetch(`${SB_URL}/rest/v1/plan_feed?bot_id=eq.XAU&active=eq.true`, { method: 'PATCH', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }) });
+    const payload = { bot_id: 'XAU', plan_date: new Date().toISOString().split('T')[0], plans: buildPlansData(), note: 'Filtre de confirmation — cockpit du jour (auto)', active: true };
+    const res = await fetch(`${SB_URL}/rest/v1/plan_feed`, { method: 'POST', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify(payload) });
+    if(!res.ok) throw new Error(`HTTP ${res.status}`);
+    status.innerHTML = '<span style="color:var(--bull)">✓ Plans envoyés à plan_feed ! Le bot pourra les lire comme filtre.</span>';
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
+  }
+}
+async function deactivatePlanFeed(){
+  const status = document.getElementById('plan-feed-status');
+  status.innerHTML = '<span style="color:var(--cyan)">⏹ Désactivation...</span>';
+  try {
+    await fetch(`${SB_URL}/rest/v1/plan_feed?bot_id=eq.XAU&active=eq.true`, { method: 'PATCH', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }) });
+    status.innerHTML = '<span style="color:var(--bull)">✓ plan_feed désactivé — le bot ignore ce filtre jusqu\'au prochain envoi</span>';
+  } catch(e) {
+    status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
+  }
+}
+loadAll();
+</script>
+</body>
+</html>
