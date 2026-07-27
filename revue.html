@@ -400,7 +400,7 @@ let SELECTED_DATE = fmtDate(new Date());
 
 async function loadCore(){
   try{
-    ALL_TRADES = await sb('trade_history?select=*&order=open_time.desc&limit=500');
+    ALL_TRADES = await sb('cockpit_trades?select=*&status=eq.closed&order=entry_time.desc&limit=1000');
     ALL_REVIEWS = await sb('daily_reviews?select=*');
     ALL_CALLS = await sb('analyst_calls?select=*');
   }catch(e){ console.error(e); }
@@ -409,7 +409,11 @@ async function loadCore(){
   renderForDate(SELECTED_DATE);
   renderCalendar();
 }
-function tradeDate(t){ return (t.open_time||'').split('T')[0]; }
+/* 27/07 : trade_history (legacy MT5 import) n'est plus alimentée depuis le 23/07 —
+   source de vérité désormais cockpit_trades, écrite en direct par l'EA OnlyCockpit.
+   Champs renommés : open_time->entry_time, pnl->profit, open_price->entry_price,
+   close_price->exit_price, matched_plan->plan_ids ("A"/"B"/"C"/"D"), bot_id->bot_name. */
+function tradeDate(t){ return (t.entry_time||'').split('T')[0]; }
 function populateDateSelect(){
   const dates = [...new Set(ALL_TRADES.map(tradeDate).filter(Boolean))].sort().reverse();
   if(!dates.includes(SELECTED_DATE) && dates.length) SELECTED_DATE = dates[0];
@@ -446,13 +450,13 @@ function renderHero(date){
 }
 
 function renderDayStats(date){
-  const trades = ALL_TRADES.filter(t => tradeDate(t) === date && t.pnl !== null);
+  const trades = ALL_TRADES.filter(t => tradeDate(t) === date && t.profit !== null);
   const n = trades.length;
-  const net = trades.reduce((s,t)=>s+(parseFloat(t.pnl)||0),0);
-  const wins = trades.filter(t=>parseFloat(t.pnl)>0).length;
+  const net = trades.reduce((s,t)=>s+(parseFloat(t.profit)||0),0);
+  const wins = trades.filter(t=>parseFloat(t.profit)>0).length;
   const winRate = n ? Math.round((wins/n)*100) : null;
-  const best = n ? Math.max(...trades.map(t=>parseFloat(t.pnl)||0)) : null;
-  const worst = n ? Math.min(...trades.map(t=>parseFloat(t.pnl)||0)) : null;
+  const best = n ? Math.max(...trades.map(t=>parseFloat(t.profit)||0)) : null;
+  const worst = n ? Math.min(...trades.map(t=>parseFloat(t.profit)||0)) : null;
   document.getElementById('dayStats').innerHTML = `
     <div class="dstat"><div class="k">Trades</div><div class="v">${n}</div></div>
     <div class="dstat"><div class="k">P&amp;L net</div><div class="v" style="color:${net>=0?'var(--bull)':'var(--bear)'}">${net>=0?'+':''}${fmt(net)}</div></div>
@@ -464,14 +468,14 @@ function renderDayStats(date){
   const list = document.getElementById('tradeList');
   if(!allDayTrades.length){ list.innerHTML = '<div class="empty">Aucun trade ce jour</div>'; return; }
   list.innerHTML = allDayTrades.map(t=>{
-    const pnl = t.pnl === null ? null : parseFloat(t.pnl);
-    const time = t.open_time ? new Date(t.open_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+    const pnl = t.profit === null ? null : parseFloat(t.profit);
+    const time = t.entry_time ? new Date(t.entry_time).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
     return `<div class="trow">
       <span class="tdir ${t.direction}">${t.direction === 'sell' ? 'Vente' : 'Achat'}</span>
-      <span class="mono">${fmt(t.open_price)} → ${t.close_price!==null?fmt(t.close_price):'ouvert'}</span>
-      <span class="tplan">${esc(t.matched_plan||'—')}</span>
+      <span class="mono">${fmt(t.entry_price)} → ${t.exit_price!==null?fmt(t.exit_price):'ouvert'}</span>
+      <span class="tplan">${esc(t.plan_ids||'—')}</span>
       <span class="tpnl ${pnl===null?'':(pnl>=0?'pos':'neg')}">${pnl===null?'—':(pnl>=0?'+':'')+fmt(pnl)}</span>
-      <div class="tmeta">${esc(t.bot_id||'')} · #${t.ticket??''} · ${time} · ${esc(t.match_method||'')}</div>
+      <div class="tmeta">${esc(t.bot_name||'')} · #${t.ticket??''} · ${time} · ${esc(t.exit_reason||'')}</div>
     </div>`;
   }).join('');
 }
@@ -481,11 +485,11 @@ function renderPlansVsReality(date){
   const trades = ALL_TRADES.filter(t => tradeDate(t) === date);
   const grid = document.getElementById('pvrGrid');
   if(!rev){ grid.innerHTML = '<div class="empty">Pas de données de range pour cette date</div>'; return; }
-  const plans = ['PGA','PGB','PGC','PGD'];
+  const plans = ['A','B','C','D'];
   const cards = plans.map(p=>{
-    const hits = trades.filter(t=>t.matched_plan===p);
+    const hits = trades.filter(t=>t.plan_ids===p);
     if(!hits.length) return '';
-    const netP = hits.reduce((s,t)=>s+(parseFloat(t.pnl)||0),0);
+    const netP = hits.reduce((s,t)=>s+(parseFloat(t.profit)||0),0);
     return `<div class="pvr-card"><div class="nm">${p}</div>
       <div class="pvr-line">Trades exécutés : <b>${hits.length}</b></div>
       <div class="pvr-line">P&amp;L cumulé : <b style="color:${netP>=0?'var(--bull)':'var(--bear)'}">${netP>=0?'+':''}${fmt(netP)}</b></div>
@@ -497,7 +501,7 @@ function renderPlansVsReality(date){
 function renderAnalystVerdicts(date){
   const calls = ALL_CALLS.filter(c => c.trading_date === date);
   const box = document.getElementById('analystVerdicts');
-  if(!calls.length){ box.innerHTML = '<div class="empty">Aucun call analyste pour cette date</div>'; return; }
+  if(!calls.length){ box.innerHTML = '<div class="empty">Aucun call analyste noté pour cette date (table non alimentée automatiquement depuis le 13/07 — dernière notation manuelle)</div>'; return; }
   const vClass = { correct:'v-correct', incorrect:'v-incorrect', pending:'v-pending', n_a:'v-na' };
   box.innerHTML = calls.map(c=>`
     <div class="av-row"><div class="hd">
@@ -513,7 +517,7 @@ function renderAnalystVerdicts(date){
 /* ============== LEADERBOARD (agrégé depuis analyst_calls) ============== */
 function renderLeaderboard(){
   const box = document.getElementById('leaderboard');
-  if(!ALL_CALLS.length){ box.innerHTML = '<div class="empty">Aucun call analyste enregistré</div>'; return; }
+  if(!ALL_CALLS.length){ box.innerHTML = '<div class="empty">Aucun call analyste enregistré (notation manuelle, non automatisée)</div>'; return; }
   const byAnalyst = {};
   for(const c of ALL_CALLS){
     const k = c.analyst_name;
@@ -554,8 +558,8 @@ function pnlByDay(){
   const map = {};
   for(const t of ALL_TRADES){
     const d = tradeDate(t);
-    if(!d || t.pnl === null) continue;
-    map[d] = (map[d]||0) + (parseFloat(t.pnl)||0);
+    if(!d || t.profit === null) continue;
+    map[d] = (map[d]||0) + (parseFloat(t.profit)||0);
   }
   return map;
 }
