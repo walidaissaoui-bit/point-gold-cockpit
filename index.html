@@ -427,7 +427,7 @@ function render(row){
     const dirClass = p.dir === 'sell' ? 'sell' : 'buy';
     const dirLabel = p.dir === 'sell' ? 'Vente' : 'Achat';
     const activeClass = (ap && ap.letter === k) ? ' active-plan' : '';
-    return `<div class="pcard ${dirClass}${activeClass}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div></div></div>`;
+    return `<div class="pcard ${dirClass}${activeClass}" data-plan="${k}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div></div></div>`;
   }).join('');
   document.getElementById('discipline-box').textContent = row.discipline || '—';
   if(!document.getElementById('vp-val').value) document.getElementById('vp-val').value = row.day_low ?? '';
@@ -525,7 +525,30 @@ async function deactivatePlanFeed(){
     status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
   }
 }
+async function pollLiveGate(){
+  try {
+    const res = await fetch('/api/live-gate');
+    if(!res.ok) return;
+    const data = await res.json();
+    if(!data.ok || !data.active_plan) return;
+    const ap = data.active_plan;
+    const apBox = document.getElementById('active-plan-box');
+    if(apBox){
+      if(ap.letter){
+        const warn = ap.misaligned ? ' <span style="color:var(--amber)">⚠ gate désaligné — à confirmer avant entrée</span>' : '';
+        apBox.innerHTML = `<div class="active-plan-banner"><span class="ap-letter">🎯 Plan ${ap.letter} actif</span><span class="ap-reason">${ap.reason||''}</span>${warn}</div>`;
+      } else {
+        apBox.innerHTML = `<div class="active-plan-banner none">${ap.reason || 'Aucun plan actif pour le moment'}</div>`;
+      }
+    }
+    document.querySelectorAll('#plans-grid .pcard').forEach(card => {
+      card.classList.toggle('active-plan', card.dataset.plan === ap.letter);
+    });
+  } catch(e) { /* silencieux — nouvelle tentative au prochain tick */ }
+}
 loadAll();
+setTimeout(pollLiveGate, 15000);
+setInterval(pollLiveGate, 120000);
 </script>
 </body>
 </html>
