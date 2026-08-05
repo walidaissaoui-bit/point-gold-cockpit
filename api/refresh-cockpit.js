@@ -1,6 +1,8 @@
 // api/refresh-cockpit.js
 // Pipeline Point Gold : Gmail (TradingView) + Twelve Data (prix/indicateurs) + Claude (synthèse)
 // -> écrit une ligne dans Supabase `cockpit_state`.
+const { selectActivePlan } = require('../lib/active-plan-selector');
+
 const SUPABASE_URL = 'https://bddqezljktjzjfxgwvzk.supabase.co';
 const FALLBACK_REFRESH_SECRET = '39214b87c459b7946ad4b678e0b153ea1aeaea94ec86d78c';
 const REFRESH_SECRET = process.env.REFRESH_SECRET || FALLBACK_REFRESH_SECRET;
@@ -226,6 +228,35 @@ ${emailsBlock || '(aucun email pertinent trouvé dans les dernières 48h)'}`;
   return JSON.parse(cleaned);
 }
 
+async function getPreviousActiveLetter() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/active_plan_log?select=active_letter&order=created_at.desc&limit=1`,
+    {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+      }
+    }
+  );
+  if (!res.ok) return null;
+  const data = await res.json();
+  return data[0] ? data[0].active_letter : null;
+}
+
+async function logActivePlanChange(entry) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/active_plan_log`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      Prefer: 'return=minimal'
+    },
+    body: JSON.stringify(entry)
+  });
+  if (!res.ok) console.error('active_plan_log insert a échoué:', res.status, (await res.text()).slice(0, 300));
+}
+
 async function writeCockpitState(row) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/cockpit_state`, {
     method: 'POST',
@@ -254,10 +285,15 @@ module.exports = async (req, res) => {
 
     const synth = await synthesize(emails, market);
 
+    const activePlan = selectActivePlan(synth.plans || {}, {
+      price: market.price, ema5: market.ema5, ema8: market.ema8
+    });
+    const generatedAt = new Date().toISOString();
+
     const row = {
       bot_id: BOT_ID,
-      run_date: new Date().toISOString().split('T')[0],
-      generated_at: new Date().toISOString(),
+      run_date: generatedAt.split('T')[0],
+      generated_at: generatedAt,
       price: market.price,
       prev_close: market.prev_close,
       change: market.change,
@@ -277,11 +313,35 @@ module.exports = async (req, res) => {
       discipline: synth.discipline,
       status: 'ok',
       error: null,
-      chart: market.chart
+      chart: market.chart,
+      active_plan: {
+        letter: activePlan.letter,
+        reason: activePlan.reason,
+        since: generatedAt,
+        price: market.price,
+        misaligned: !!activePlan.misaligned
+      }
     };
 
     await writeCockpitState(row);
-    res.status(200).json({ ok: true, generated_at: row.generated_at });
+
+    const previousLetter = await getPreviousActiveLetter().catch(() => null);
+    if (activePlan.letter !== previousLetter) {
+      await logActivePlanChange({
+        plan_date: row.run_date,
+        active_letter: activePlan.letter,
+        previous_letter: previousLetter,
+        reason: activePlan.reason,
+        price: market.price,
+        gate_verdict: synth.gate_verdict,
+        stoch_k: market.stoch_k,
+        stoch_d: market.stoch_d,
+        ema5: market.ema5,
+        ema8: market.ema8
+      }).catch(err => console.error('Log active_plan_log a échoué:', err));
+    }
+
+    res.status(200).json({ ok: true, generated_at: row.generated_at, active_plan: activePlan.letter });
   } catch (err) {
     console.error('refresh-cockpit error:', err);
     try {

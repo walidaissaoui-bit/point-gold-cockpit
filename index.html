@@ -64,11 +64,16 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .an-item .who{font-family:"JetBrains Mono",monospace;font-size:10.5px;color:var(--gold-dim);display:block;margin-bottom:2px}
 .synth{margin-top:13px;padding:12px 14px;border:1px dashed var(--line);border-radius:10px;font-size:12.5px;line-height:1.6;color:var(--mut)}
 .synth b{color:var(--txt)}
+.active-plan-banner{border:1px solid rgba(255,206,74,.4);background:rgba(255,206,74,.07);border-radius:12px;padding:11px 14px;margin-bottom:13px;display:flex;align-items:center;gap:10px;flex-wrap:wrap;font-size:12.5px}
+.active-plan-banner .ap-letter{font-weight:700;color:var(--gold);font-size:13px;white-space:nowrap}
+.active-plan-banner .ap-reason{color:var(--mut);line-height:1.4}
+.active-plan-banner.none{border-color:var(--line);background:var(--bg2);color:var(--mut)}
 .plans-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
 @media(max-width:620px){.plans-grid{grid-template-columns:1fr}}
 .pcard{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg2)}
 .pcard.buy{border-color:rgba(43,229,139,.32)}
 .pcard.sell{border-color:rgba(255,80,110,.32)}
+.pcard.active-plan{box-shadow:0 0 0 2px var(--gold),0 0 18px rgba(255,206,74,.25)}
 .pcard-h{padding:11px 14px;display:flex;align-items:center;gap:9px;border-bottom:1px solid var(--line);flex-wrap:wrap}
 .pcard.buy .pcard-h{background:rgba(43,229,139,.07)}
 .pcard.sell .pcard-h{background:rgba(255,80,110,.07)}
@@ -156,6 +161,7 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 </div>
 <div class="card">
 <h2><span class="ix">🎯</span> Plans A / B / C / D <span class="free">· gate alignée obligatoire — pas de contrainte horaire, le setup prime</span></h2>
+<div id="active-plan-box"></div>
 <div class="plans-grid" id="plans-grid"></div>
 </div>
 <div class="card">
@@ -405,12 +411,23 @@ function render(row){
   document.getElementById('an-cols').innerHTML = anHtml;
   document.getElementById('an-synth').innerHTML = an.summary ? `<b>Net :</b> ${an.summary}` : '—';
   const plans = row.plans || {};
+  const ap = row.active_plan || null;
+  const apBox = document.getElementById('active-plan-box');
+  if(apBox){
+    if(ap && ap.letter){
+      const warn = ap.misaligned ? ' <span style="color:var(--amber)">⚠ gate désaligné — à confirmer avant entrée</span>' : '';
+      apBox.innerHTML = `<div class="active-plan-banner"><span class="ap-letter">🎯 Plan ${ap.letter} actif</span><span class="ap-reason">${ap.reason||''}</span>${warn}</div>`;
+    } else {
+      apBox.innerHTML = `<div class="active-plan-banner none">${(ap && ap.reason) || 'Aucun plan actif pour le moment'}</div>`;
+    }
+  }
   document.getElementById('plans-grid').innerHTML = ['A','B','C','D'].map(k => {
     const p = plans[k];
     if(!p) return '';
     const dirClass = p.dir === 'sell' ? 'sell' : 'buy';
     const dirLabel = p.dir === 'sell' ? 'Vente' : 'Achat';
-    return `<div class="pcard ${dirClass}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div></div></div>`;
+    const activeClass = (ap && ap.letter === k) ? ' active-plan' : '';
+    return `<div class="pcard ${dirClass}${activeClass}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div></div></div>`;
   }).join('');
   document.getElementById('discipline-box').textContent = row.discipline || '—';
   if(!document.getElementById('vp-val').value) document.getElementById('vp-val').value = row.day_low ?? '';
