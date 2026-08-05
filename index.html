@@ -494,7 +494,7 @@ function buildPlansData(){
   ['A','B','C','D'].forEach(k => {
     const p = plans[k];
     if(!p) return;
-    out[k] = { dir: p.dir, zone: p.zone, trigger: p.trigger, targets: p.targets, invalid: p.invalid };
+    out[k] = { dir: p.dir, zone: p.zone, trigger: p.trigger, targets: p.targets, invalid: p.invalid, reversal: (typeof p.reversal === 'boolean') ? p.reversal : (k === 'B' || k === 'C') };
   });
   return out;
 }

@@ -189,11 +189,16 @@ au format exact suivant :
     "summary": "string, synthèse nette 1-2 phrases"
   },
   "plans": {
-    "A": {"dir": "buy|sell", "role": "string", "zone": [low, high], "trigger": "string", "targets": [n, n], "invalid": number},
+    "A": {"dir": "buy|sell", "role": "string", "zone": [low, high], "trigger": "string", "targets": [n, n], "invalid": number, "reversal": boolean},
     "B": {...}, "C": {...}, "D": {...}
   },
   "discipline": "string, rappels de discipline pertinents pour la session (1-3 phrases)"
 }
+Pour chaque plan, "reversal" doit valoir true si le plan parie sur un retournement/rejet contre la
+tendance en cours (mean-reversion, résistance/support attendu à tenir), et false si le plan suit la
+tendance en cours ou une continuation/breakout. NE PAS te baser sur la lettre du plan (A/B/C/D) —
+cela dépend uniquement de la logique de marché décrite ce jour-là ; un plan A peut très bien être le
+reversal un jour donné et B la continuation un autre jour.
 Base les niveaux clés et les plans A/B/C/D sur la synthèse des emails d'analystes ET sur les
 données de marché fournies (prix, range, EMA, Stoch). Si une info manque, fais une estimation
 raisonnable plutôt que de casser le JSON.`;
