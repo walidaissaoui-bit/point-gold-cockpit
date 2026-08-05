@@ -59,6 +59,12 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 .trow .tpnl{margin-left:auto;font-family:"JetBrains Mono",monospace;font-weight:700}
 .tpnl.pos{color:var(--bull)}.tpnl.neg{color:var(--bear)}
 .trow .tmeta{width:100%;font-size:10.5px;color:var(--mut);margin-top:2px}
+.aph-row{border:1px solid var(--line);border-radius:9px;padding:9px 12px;background:var(--bg2);margin-bottom:7px;display:flex;gap:10px;align-items:flex-start;font-size:11.5px}
+.aph-row.misaligned{border-color:rgba(255,177,61,.4);background:rgba(255,177,61,.04)}
+.aph-row .dot{width:8px;height:8px;border-radius:50%;margin-top:5px;flex-shrink:0}
+.aph-row .t{color:var(--mut);font-family:"JetBrains Mono",monospace;font-size:10px;white-space:nowrap}
+.aph-row .transition{font-weight:700;color:var(--gold)}
+.aph-row .reason{color:var(--mut);margin-top:2px;line-height:1.4}
 
 /* --- day hero --- */
 .hero{border-radius:13px;padding:16px;display:flex;align-items:center;gap:14px;flex-wrap:wrap}
@@ -211,6 +217,11 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 <div class="card">
   <h2><span class="ix">🎯</span> Plans vs Réalité</h2>
   <div class="pvr-grid" id="pvrGrid"><div class="empty">Pas de plans enregistrés pour cette date</div></div>
+</div>
+
+<div class="card">
+  <h2><span class="ix">🕐</span> Historique du plan actif <span class="free">· active_plan_log · pour la date sélectionnée</span></h2>
+  <div id="aphBox"><div class="empty">chargement…</div></div>
 </div>
 
 <div class="card">
@@ -396,6 +407,7 @@ setInterval(loadOcLogs, 10000);
 let ALL_TRADES = [];
 let ALL_REVIEWS = [];
 let ALL_CALLS = [];
+let ALL_PLAN_SWITCHES = [];
 let SELECTED_DATE = fmtDate(new Date());
 
 async function loadCore(){
@@ -403,6 +415,7 @@ async function loadCore(){
     ALL_TRADES = await sb('cockpit_trades?select=*&status=eq.closed&order=entry_time.desc&limit=1000');
     ALL_REVIEWS = await sb('daily_reviews?select=*');
     ALL_CALLS = await sb('analyst_calls?select=*');
+    ALL_PLAN_SWITCHES = await sb('active_plan_log?select=*&order=created_at.desc&limit=500');
   }catch(e){ console.error(e); }
   populateDateSelect();
   renderLeaderboard();
@@ -414,8 +427,9 @@ async function loadCore(){
    Champs renommés : open_time->entry_time, pnl->profit, open_price->entry_price,
    close_price->exit_price, matched_plan->plan_ids ("A"/"B"/"C"/"D"), bot_id->bot_name. */
 function tradeDate(t){ return (t.entry_time||'').split('T')[0]; }
+function switchDate(s){ return (s.created_at||'').split('T')[0]; }
 function populateDateSelect(){
-  const dates = [...new Set(ALL_TRADES.map(tradeDate).filter(Boolean))].sort().reverse();
+  const dates = [...new Set([...ALL_TRADES.map(tradeDate), ...ALL_PLAN_SWITCHES.map(switchDate)])].filter(Boolean).sort().reverse();
   if(!dates.includes(SELECTED_DATE) && dates.length) SELECTED_DATE = dates[0];
   const sel = document.getElementById('dateSelect');
   sel.innerHTML = dates.map(d=>`<option value="${d}" ${d===SELECTED_DATE?'selected':''}>${d}</option>`).join('') || `<option value="${SELECTED_DATE}">${SELECTED_DATE}</option>`;
@@ -427,6 +441,7 @@ function renderForDate(date){
   renderHero(date);
   renderDayStats(date);
   renderPlansVsReality(date);
+  renderActivePlanHistory(date);
   renderAnalystVerdicts(date);
 }
 
@@ -496,6 +511,30 @@ function renderPlansVsReality(date){
       <div class="pvr-line">Range réel du jour : <b>${fmt(rev.low_price)} – ${fmt(rev.high_price)}</b></div></div>`;
   }).filter(Boolean).join('');
   grid.innerHTML = cards || '<div class="empty">Aucun plan touché ce jour</div>';
+}
+
+function renderActivePlanHistory(date){
+  const rows = ALL_PLAN_SWITCHES.filter(s => switchDate(s) === date).slice().reverse();
+  const box = document.getElementById('aphBox');
+  if(!rows.length){ box.innerHTML = '<div class="empty">Aucun changement de plan actif enregistré pour cette date</div>'; return; }
+  box.innerHTML = rows.map(s=>{
+    const time = s.created_at ? new Date(s.created_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+    const from = s.previous_letter || '—';
+    const to = s.active_letter || 'aucun';
+    const hasGate = s.ema5!==null && s.ema5!==undefined && s.ema8!==null && s.ema8!==undefined;
+    const gateDir = hasGate ? (parseFloat(s.ema5) > parseFloat(s.ema8) ? 'haussier' : 'baissier') : '';
+    const misaligned = (s.reason||'').includes('désaligné');
+    const dotColor = to === 'aucun' ? 'var(--mut)' : (misaligned ? 'var(--amber)' : 'var(--gold)');
+    const hasStoch = s.stoch_k!==null && s.stoch_k!==undefined;
+    return `<div class="aph-row${misaligned?' misaligned':''}">
+      <span class="dot" style="background:${dotColor}"></span>
+      <div style="flex:1">
+        <div><span class="t">${time}</span> <span class="transition">${esc(from)} → ${esc(to)}</span>${gateDir?` <span style="color:var(--mut);font-size:10.5px">· gate ${gateDir}</span>`:''}</div>
+        <div class="reason">${esc(s.reason||'')}</div>
+        <div class="reason" style="opacity:.7">prix ${fmt(s.price)}${hasStoch?` · Stoch %K ${fmt(s.stoch_k)} %D ${fmt(s.stoch_d)}`:''}</div>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function renderAnalystVerdicts(date){
