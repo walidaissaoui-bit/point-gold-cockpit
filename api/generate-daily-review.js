@@ -73,7 +73,35 @@ async function fetchAnalystTally(tradingDate) {
   }, { buy: 0, sell: 0, neutral: 0 });
 }
 
-async function classifyDay(stats, reversalCount, tally) {
+// Prend les niveaux de la toute première génération du jour (le plan initial de la session,
+// avant que les mises à jour intrajournalières ne les déplacent) et vérifie s'ils ont tenu
+// face au high/low réel de la journée.
+async function fetchMorningLevels(tradingDate) {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/cockpit_state?select=levels&bot_id=eq.XAU&run_date=eq.${tradingDate}&status=eq.ok&order=generated_at.asc&limit=1`,
+    { headers: sbHeaders() }
+  );
+  if (!res.ok) return null;
+  const rows = await res.json();
+  return rows[0] ? rows[0].levels : null;
+}
+
+function buildKeyLevelsRespected(morningLevels, stats) {
+  if (!morningLevels) return null;
+  const resistances = (morningLevels.resistances || []).map(r => ({
+    price: r.price,
+    desc: r.desc || '',
+    respected: r.price == null ? null : stats.high <= r.price
+  }));
+  const supports = (morningLevels.supports || []).map(s => ({
+    price: s.price,
+    desc: s.desc || '',
+    respected: s.price == null ? null : stats.low >= s.price
+  }));
+  return { resistances, supports };
+}
+
+async function classifyDay(stats, reversalCount, tally, keyLevels) {
   const system = `Tu es l'analyste du cockpit "Point Gold" (XAU/USD) de Walid. Tu classifies UNE journée
 de trading déjà terminée. Réponds STRICTEMENT en JSON valide, sans texte avant/après, format exact :
 {
@@ -87,6 +115,10 @@ Guide de classification :
 - red_erratic : beaucoup de reversals, journée chaotique, difficile à trader proprement.
 - blue_false_start : démarrage dans un sens qui s'est inversé tôt et n'a jamais repris.`;
 
+  const levelsLines = [];
+  (keyLevels?.resistances || []).forEach(r => levelsLines.push(`Résistance ${r.price} (${r.desc || '—'}) : ${r.respected ? 'tenue' : 'cassée'}`));
+  (keyLevels?.supports || []).forEach(s => levelsLines.push(`Support ${s.price} (${s.desc || '—'}) : ${s.respected ? 'tenu' : 'cassé'}`));
+
   const user = `STATS DU JOUR (XAU/USD)
 Ouverture: ${stats.open}  Clôture: ${stats.close}
 Haut: ${stats.high}  Bas: ${stats.low}
@@ -94,7 +126,9 @@ Range total: ${stats.range_total.toFixed(2)}  ATR14 (D1): ${isNaN(stats.atr14) ?
 Ratio range/ATR: ${stats.atr_ratio != null ? stats.atr_ratio.toFixed(2) : '—'}
 Position de clôture dans le range (0=bas, 1=haut): ${stats.close_position.toFixed(2)}
 Nombre de bascules de plan actif (gate M15) dans la journée: ${reversalCount ?? '—'}
-Répartition des calls analystes du jour: ${tally.buy} achat / ${tally.sell} vente / ${tally.neutral} neutre`;
+Répartition des calls analystes du jour: ${tally.buy} achat / ${tally.sell} vente / ${tally.neutral} neutre
+Niveaux clés du matin vs réalité :
+${levelsLines.length ? levelsLines.join('\n') : '(aucun niveau clé enregistré ce jour-là)'}`;
 
   const res = await fetch('https://api.anthropic.com/v1/messages', {
     method: 'POST',
@@ -134,11 +168,13 @@ module.exports = async (req, res) => {
   try {
     const tradingDate = new Date().toISOString().split('T')[0];
     const stats = await fetchDayStats();
-    const [reversalCount, tally] = await Promise.all([
+    const [reversalCount, tally, morningLevels] = await Promise.all([
       fetchReversalCount(tradingDate),
-      fetchAnalystTally(tradingDate)
+      fetchAnalystTally(tradingDate),
+      fetchMorningLevels(tradingDate)
     ]);
-    const classification = await classifyDay(stats, reversalCount, tally);
+    const keyLevels = buildKeyLevelsRespected(morningLevels, stats);
+    const classification = await classifyDay(stats, reversalCount, tally, keyLevels);
 
     const row = {
       trading_date: tradingDate,
@@ -152,7 +188,7 @@ module.exports = async (req, res) => {
       atr_ratio: stats.atr_ratio,
       close_position: stats.close_position,
       reversal_count: reversalCount,
-      key_levels_respected: null,
+      key_levels_respected: keyLevels,
       summary: classification.summary
     };
 
