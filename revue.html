@@ -78,6 +78,9 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 /* --- calendrier --- */
 .cal-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
 .cal-head button{background:var(--bg2);border:1px solid var(--line);color:var(--txt);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:12px}
+.tradability-btn{background:rgba(255,206,74,.12);border:1px solid var(--gold);color:var(--gold);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:11px;font-weight:600;margin-bottom:10px}
+.tradability-btn:disabled{opacity:.5;cursor:default}
+.tradability-status{font-size:11px;color:var(--mut);margin-bottom:10px}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-dow{font-size:9px;color:var(--mut);text-align:center;text-transform:uppercase;padding-bottom:4px}
 .cal-cell{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;cursor:pointer;position:relative}
@@ -226,6 +229,8 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 
 <div class="card">
   <h2><span class="ix">✉</span> Verdicts analystes <span class="free">· pour la date sélectionnée</span></h2>
+  <button id="tradabilityBtn" class="tradability-btn">🎯 Analyser la tradabilité de cette date</button>
+  <div id="tradabilityStatus" class="tradability-status"></div>
   <div id="analystVerdicts"><div class="empty">Aucun call analyste pour cette date</div></div>
 </div>
 
@@ -552,6 +557,31 @@ function renderAnalystVerdicts(date){
     ${c.score!==null?(' · score '+fmt(c.score)):''}</div>
     ${c.note?`<div class="body">${esc(c.note)}</div>`:''}</div>`).join('');
 }
+
+/* ============== TRADABILITÉ (bouton manuel, compare zone/SL/TP au chemin de prix réel) ============== */
+const TRADABILITY_SECRET = "39214b87c459b7946ad4b678e0b153ea1aeaea94ec86d78c";
+document.getElementById('tradabilityBtn').addEventListener('click', async () => {
+  const btn = document.getElementById('tradabilityBtn');
+  const status = document.getElementById('tradabilityStatus');
+  btn.disabled = true;
+  status.textContent = `Analyse du ${SELECTED_DATE} en cours…`;
+  try {
+    const url = `/api/analyze-tradability?date=${encodeURIComponent(SELECTED_DATE)}&secret=${encodeURIComponent(TRADABILITY_SECRET)}`;
+    const res = await fetch(url, { method: 'POST' });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || `HTTP ${res.status}`);
+    status.textContent = data.updated
+      ? `${data.updated} call(s) analysé(s) pour le ${data.date}.`
+      : `Aucun call analyste trouvé pour le ${data.date}.`;
+    ALL_CALLS = await sb('analyst_calls?select=*');
+    renderAnalystVerdicts(SELECTED_DATE);
+    renderLeaderboard();
+  } catch (e) {
+    status.textContent = `Erreur : ${e.message}`;
+  } finally {
+    btn.disabled = false;
+  }
+});
 
 /* ============== LEADERBOARD (agrégé depuis analyst_calls) ============== */
 function renderLeaderboard(){
