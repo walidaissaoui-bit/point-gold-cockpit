@@ -23,6 +23,9 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .brand .sub{font-size:11px;color:var(--mut);text-transform:uppercase;letter-spacing:2px;margin-top:3px}
 .top .spacer{flex:1}
 .win{font-size:10.5px;font-weight:700;letter-spacing:.8px;text-transform:uppercase;color:var(--cyan);border:1px solid rgba(58,214,207,.4);background:rgba(58,214,207,.1);border-radius:999px;padding:6px 12px;text-align:center;line-height:1.35}
+.push-badge{font-size:10.5px;font-weight:700;letter-spacing:.5px;color:var(--mut);border:1px solid var(--line);background:var(--bg2);border-radius:999px;padding:6px 12px;white-space:nowrap}
+.push-badge.on{color:var(--bull);border-color:rgba(43,229,139,.4);background:rgba(43,229,139,.1)}
+.push-badge.unsupported{color:var(--mut);border-color:var(--line);opacity:.7}
 .btn-refresh{background:var(--cyan);color:#000;border:0;border-radius:10px;padding:8px 14px;font-weight:600;cursor:pointer;font-size:12px;letter-spacing:.5px;margin-right:12px}
 .btn-refresh:disabled{opacity:.5;cursor:wait}
 .tabs{display:flex;gap:8px;margin-right:4px}
@@ -150,6 +153,7 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 <div class="brand"><h1>POINT <b>GOLD</b></h1><div class="sub">XAU/USD · Méthode v3.x</div></div>
 <div class="spacer"></div>
 <nav class="tabs"><a class="tab active" href="/">Cockpit</a><a class="tab" href="/revue.html">Revue</a></nav>
+<span class="push-badge" id="push-status-badge">🔕 Alertes désactivées</span>
 <button class="btn-refresh" id="btnMaj" onclick="triggerUpdate()">🔄 Mettre à jour</button>
 <div class="win">Dernière génération<br><span style="font-size:12px;font-weight:700;letter-spacing:.5px" id="genAt">—</span></div>
 </div>
@@ -603,14 +607,35 @@ function urlBase64ToUint8Array(base64String){
   const raw = atob(base64);
   return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
 }
-function updatePushButtonState(){
+async function refreshPushStatus(){
+  const badge = document.getElementById('push-status-badge');
   const btn = document.getElementById('push-subscribe-btn');
-  if(!btn) return;
+  if(!badge) return;
   if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)){
-    btn.textContent = '🔕 Alertes non supportées sur ce navigateur';
-    btn.disabled = true;
-  } else if(Notification.permission === 'granted'){
-    btn.textContent = '🔔 Alertes activées';
+    badge.textContent = '🔕 Alertes non supportées';
+    badge.className = 'push-badge unsupported';
+    if(btn){ btn.textContent = '🔕 Alertes non supportées sur ce navigateur'; btn.disabled = true; }
+    return;
+  }
+  if(Notification.permission !== 'granted'){
+    badge.textContent = '🔕 Alertes désactivées';
+    badge.className = 'push-badge';
+    return;
+  }
+  try {
+    const reg = await navigator.serviceWorker.ready;
+    const sub = await reg.pushManager.getSubscription();
+    if(sub){
+      badge.textContent = '🔔 Alertes activées';
+      badge.className = 'push-badge on';
+      if(btn){ btn.textContent = '🔔 Alertes activées'; }
+    } else {
+      badge.textContent = '🔕 Permission ok, non abonné';
+      badge.className = 'push-badge';
+    }
+  } catch(e){
+    badge.textContent = '🔕 Alertes désactivées';
+    badge.className = 'push-badge';
   }
 }
 async function enablePushAlerts(){
@@ -623,6 +648,7 @@ async function enablePushAlerts(){
     const permission = await Notification.requestPermission();
     if(permission !== 'granted'){
       alert('Permission refusée — les alertes ne pourront pas s\'afficher.');
+      await refreshPushStatus();
       return;
     }
     const reg = await navigator.serviceWorker.register('/sw.js');
@@ -640,15 +666,17 @@ async function enablePushAlerts(){
       body: JSON.stringify({ subscription: sub.toJSON(), userAgent: navigator.userAgent })
     });
     if(btn){ btn.textContent = '🔔 Alertes activées'; }
+    await refreshPushStatus();
   } catch(e) {
     console.error('enablePushAlerts error:', e);
     alert('Erreur activation des alertes : ' + e.message);
+    await refreshPushStatus();
   }
 }
 if('serviceWorker' in navigator){
   navigator.serviceWorker.register('/sw.js').catch(()=>{});
 }
-updatePushButtonState();
+refreshPushStatus();
 
 let lgLastSuccess = null;
 let lgFailCount = 0;
