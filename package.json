@@ -2,5 +2,8 @@
   "name": "point-gold-cockpit",
   "version": "1.0.0",
   "private": true,
-  "engines": { "node": "24.x" }
+  "engines": { "node": "24.x" },
+  "dependencies": {
+    "web-push": "^3.6.7"
+  }
 }

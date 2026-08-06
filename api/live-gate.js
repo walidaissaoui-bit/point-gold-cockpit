@@ -5,10 +5,24 @@
 // stockés sur la dernière ligne cockpit_state, et fait un PATCH ciblé (pas un nouvel INSERT)
 // pour ne pas faire grossir la table à chaque poll.
 const { selectActivePlan } = require('../lib/active-plan-selector');
+const webpush = require('web-push');
 
 const SUPABASE_URL = 'https://bddqezljktjzjfxgwvzk.supabase.co';
 const SYMBOL = 'XAU/USD';
 const TD_BASE = 'https://api.twelvedata.com';
+
+let vapidConfigured = false;
+function ensureVapid() {
+  if (vapidConfigured) return;
+  if (process.env.VAPID_PUBLIC_KEY && process.env.VAPID_PRIVATE_KEY) {
+    webpush.setVapidDetails(
+      process.env.VAPID_SUBJECT || 'mailto:contact@example.com',
+      process.env.VAPID_PUBLIC_KEY,
+      process.env.VAPID_PRIVATE_KEY
+    );
+    vapidConfigured = true;
+  }
+}
 
 async function tdGet(path, params) {
   const url = new URL(TD_BASE + path);
@@ -82,6 +96,49 @@ async function logActivePlanChange(entry) {
   if (!res.ok) console.error('active_plan_log insert a échoué:', res.status);
 }
 
+async function getPushSubscriptions() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/push_subscriptions?select=id,endpoint,p256dh,auth`,
+    { headers: sbHeaders() }
+  );
+  if (!res.ok) return [];
+  return res.json();
+}
+
+async function deletePushSubscription(id) {
+  await fetch(`${SUPABASE_URL}/rest/v1/push_subscriptions?id=eq.${id}`, {
+    method: 'DELETE',
+    headers: sbHeaders()
+  }).catch(() => {});
+}
+
+async function notifyActivePlanChange(result, market) {
+  ensureVapid();
+  if (!vapidConfigured) return; // clés VAPID pas configurées sur Vercel, on saute silencieusement
+  const subs = await getPushSubscriptions().catch(() => []);
+  if (!subs.length) return;
+
+  const title = result.letter ? `🎯 Plan ${result.letter} actif` : 'Plan actif : aucun';
+  const body = result.reason
+    ? `${result.reason} — XAU/USD ${market.price}`
+    : `XAU/USD ${market.price}`;
+  const payload = JSON.stringify({ title, body, tag: 'active-plan', url: '/' });
+
+  await Promise.all(
+    subs.map((s) =>
+      webpush
+        .sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload)
+        .catch((err) => {
+          // 404/410 = abonnement expiré ou désinstallé côté navigateur -> on le retire
+          if (err.statusCode === 404 || err.statusCode === 410) {
+            return deletePushSubscription(s.id);
+          }
+          console.error('push send error:', err.statusCode || err.message);
+        })
+    )
+  );
+}
+
 module.exports = async (req, res) => {
   try {
     const state = await getLatestCockpitState();
@@ -116,6 +173,10 @@ module.exports = async (req, res) => {
         ema5: market.ema5,
         ema8: market.ema8
       }).catch(err => console.error('log active_plan_log a échoué:', err));
+
+      if (result.letter) {
+        await notifyActivePlanChange(result, market).catch(err => console.error('push notify a échoué:', err));
+      }
     }
 
     res.status(200).json({ ok: true, active_plan: activePlan, market });

@@ -4,6 +4,8 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Point Gold · Cockpit</title>
+<link rel="manifest" href="/manifest.json">
+<meta name="theme-color" content="#08090d">
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
@@ -166,6 +168,7 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 <div class="card">
 <h2><span class="ix">🎯</span> Plans A / B / C / D <span class="free">· gate alignée obligatoire — pas de contrainte horaire, le setup prime</span></h2>
 <div id="active-plan-box"></div>
+<button id="push-subscribe-btn" onclick="enablePushAlerts()" style="margin:8px 0;padding:8px 14px;border-radius:8px;border:1px solid var(--gold,#ffce4a);background:transparent;color:var(--gold,#ffce4a);font-family:inherit;cursor:pointer;">🔔 Activer les alertes plan actif</button>
 <div class="plans-grid" id="plans-grid"></div>
 </div>
 <div class="card">
@@ -559,6 +562,61 @@ async function deactivatePlanFeed(){
     status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
   }
 }
+// --- Alertes push (notification même écran verrouillé, Android) ---
+const VAPID_PUBLIC_KEY = "BPPKvEuMh9z2V6Qbotc_42cp3TI61VQ4DugaGf38Smqzn-VQLYKpWzkDH9dkOlMyuLRSwROMST2h2gdbS2xTshc";
+function urlBase64ToUint8Array(base64String){
+  const padding = '='.repeat((4 - base64String.length % 4) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const raw = atob(base64);
+  return Uint8Array.from([...raw].map(c => c.charCodeAt(0)));
+}
+function updatePushButtonState(){
+  const btn = document.getElementById('push-subscribe-btn');
+  if(!btn) return;
+  if(!('Notification' in window) || !('serviceWorker' in navigator) || !('PushManager' in window)){
+    btn.textContent = '🔕 Alertes non supportées sur ce navigateur';
+    btn.disabled = true;
+  } else if(Notification.permission === 'granted'){
+    btn.textContent = '🔔 Alertes activées';
+  }
+}
+async function enablePushAlerts(){
+  const btn = document.getElementById('push-subscribe-btn');
+  try {
+    if(!('serviceWorker' in navigator) || !('PushManager' in window)){
+      alert('Ton navigateur ne supporte pas les notifications push.');
+      return;
+    }
+    const permission = await Notification.requestPermission();
+    if(permission !== 'granted'){
+      alert('Permission refusée — les alertes ne pourront pas s\'afficher.');
+      return;
+    }
+    const reg = await navigator.serviceWorker.register('/sw.js');
+    await navigator.serviceWorker.ready;
+    let sub = await reg.pushManager.getSubscription();
+    if(!sub){
+      sub = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(VAPID_PUBLIC_KEY)
+      });
+    }
+    await fetch('/api/save-push-subscription', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ subscription: sub.toJSON(), userAgent: navigator.userAgent })
+    });
+    if(btn){ btn.textContent = '🔔 Alertes activées'; }
+  } catch(e) {
+    console.error('enablePushAlerts error:', e);
+    alert('Erreur activation des alertes : ' + e.message);
+  }
+}
+if('serviceWorker' in navigator){
+  navigator.serviceWorker.register('/sw.js').catch(()=>{});
+}
+updatePushButtonState();
+
 async function pollLiveGate(){
   try {
     const res = await fetch('/api/live-gate');
