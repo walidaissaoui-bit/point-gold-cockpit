@@ -108,9 +108,16 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .pline .pv{font-family:"JetBrains Mono",monospace}
 .pline .pv.inval{color:var(--bear)}
 .phist{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);font-size:10.5px;color:var(--mut);line-height:1.6}
-.phist .ph-row{display:flex;gap:7px}
+.phist .ph-row{display:flex;gap:7px;align-items:center}
 .phist .ph-row .ph-t{font-family:"JetBrains Mono",monospace;white-space:nowrap;color:var(--gold-dim)}
 .phist .ph-row.ph-cur .ph-t{color:var(--gold)}
+.phist .ph-delta{margin-left:auto;font-weight:700;font-family:"JetBrains Mono",monospace;white-space:nowrap;font-size:10px}
+.phist .ph-delta.up{color:var(--bull)}
+.phist .ph-delta.down{color:var(--bear)}
+.phist .ph-delta.flat{color:var(--mut)}
+.phist-toggle{cursor:pointer;color:var(--gold-dim);text-decoration:underline;text-underline-offset:2px;margin-top:2px;display:inline-block}
+.phist-toggle:hover{color:var(--gold)}
+.phist .ph-hidden{display:none}
 .foot{font-size:11px;color:var(--mut);line-height:1.7;text-align:center;padding:6px 10px 2px}
 .foot b{color:var(--gold-dim)}
 .discl{font-size:12px;color:var(--mut);line-height:1.6}
@@ -496,9 +503,28 @@ function render(row){
     const hEntries = (planHistory[k] || []);
     let histHtml = '';
     if(hEntries.length){
-      const rowsHtml = [`<div class="ph-row ph-cur"><span class="ph-t">${row.generated_at ? new Date(row.generated_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : ''}</span><span>${fmtRange(p.zone)} (actuelle)</span></div>`]
-        .concat(hEntries.map(h => `<div class="ph-row"><span class="ph-t">${h.at ? new Date(h.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : ''}</span><span>${fmtRange(h.zone)}</span></div>`));
-      histHtml = `<div class="phist">${rowsHtml.join('')}</div>`;
+      const combined = [{ zone: p.zone, at: row.generated_at, cur: true }].concat(hEntries);
+      const mid = (z) => Array.isArray(z) && z.length >= 2 ? (Number(z[0]) + Number(z[1])) / 2 : null;
+      const rowsHtml = combined.map((h, i) => {
+        const older = combined[i + 1];
+        let deltaHtml = '';
+        if(older){
+          const m1 = mid(h.zone), m0 = mid(older.zone);
+          if(m1 != null && m0 != null){
+            const d = m1 - m0;
+            const dir = d > 0.5 ? 'up' : d < -0.5 ? 'down' : 'flat';
+            const arrow = dir === 'up' ? '↑' : dir === 'down' ? '↓' : '→';
+            deltaHtml = `<span class="ph-delta ${dir}">${arrow} ${d>=0?'+':''}${d.toFixed(0)}</span>`;
+          }
+        }
+        const hiddenClass = (i >= 2) ? ' ph-hidden' : '';
+        const rowClass = h.cur ? 'ph-row ph-cur' : 'ph-row';
+        const timeLabel = h.at ? new Date(h.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : '';
+        const zoneLabel = fmtRange(h.zone) + (h.cur ? ' (actuelle)' : '');
+        return `<div class="${rowClass}${hiddenClass}"><span class="ph-t">${timeLabel}</span><span>${zoneLabel}</span>${deltaHtml}</div>`;
+      });
+      const toggle = combined.length > 2 ? `<span class="phist-toggle" onclick="this.parentElement.querySelectorAll('.ph-hidden').forEach(el=>el.classList.toggle('ph-hidden'));this.textContent=this.textContent.startsWith('+')?'replier ▴':'+${combined.length-2} version${combined.length-2>1?'s':''} précédente${combined.length-2>1?'s':''} ▾'">+${combined.length-2} version${combined.length-2>1?'s':''} précédente${combined.length-2>1?'s':''} ▾</span>` : '';
+      histHtml = `<div class="phist">${rowsHtml.join('')}${toggle}</div>`;
     }
     return `<div class="pcard ${dirClass}${activeClass}" data-plan="${k}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div>${histHtml}</div></div>`;
   }).join('');
