@@ -204,23 +204,9 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 <div class="plans-grid" id="plans-grid"></div>
 </div>
 <div class="card">
-<h2><span class="ix">🔗</span> Envoi au bot XAU</h2>
-<div class="bot-bridge">
-<h3>VP du jour (préremplis depuis le live — ajuster si besoin avant envoi)</h3>
-<div class="bot-inputs">
-<div class="bot-input"><label>VAL</label><input type="number" id="vp-val" step="0.01" placeholder="ex 4050.0"></div>
-<div class="bot-input"><label>POC</label><input type="number" id="vp-poc" step="0.01" placeholder="ex 4111.0"></div>
-<div class="bot-input"><label>VAH</label><input type="number" id="vp-vah" step="0.01" placeholder="ex 4145.0"></div>
-</div>
-<div class="bot-ctrls">
-<button class="btn-send" onclick="sendToBotNow()">📤 Envoyer au bot maintenant</button>
-<button class="btn-send" style="background:var(--amber);color:#000" onclick="deactivatePlan()">✕ Désactiver le plan</button>
-</div>
-<div class="bot-status" id="bot-status"></div>
-<div style="font-size:10px;color:var(--mut);margin-top:8px;line-height:1.5">• Laisse vide = le bot utilisera son VP auto<br>• Remplis = override le VP du bot jusqu'à la prochaine MAJ<br>• Clique "Envoyer" = plan envoyé à Supabase, bot chargera dans ~60s</div>
-</div>
-<div class="bot-bridge" style="margin-top:14px;border-color:rgba(169,139,255,.35);background:rgba(169,139,255,.05)">
-<h3 style="color:var(--violet)">🆕 Plan Feed — filtre de confirmation (table <span class="mono">plan_feed</span>)</h3>
+<h2><span class="ix">🔗</span> Envoi au bot XAU <span class="free">· table <span class="mono">plan_feed</span> — seul pont utilisé</span></h2>
+<div class="bot-bridge" style="border-color:rgba(169,139,255,.35);background:rgba(169,139,255,.05)">
+<h3 style="color:var(--violet)">Plan Feed — filtre de confirmation</h3>
 <div style="font-size:11px;color:var(--mut);line-height:1.6;margin-bottom:10px">Envoie les 4 plans du jour (zones, cibles, invalidations) tels qu'affichés ci-dessus. Ne remplace pas la logique autonome du bot — sert de <b style="color:var(--txt)">filtre supplémentaire</b> : le bot continue de détecter ses propres setups (BOS, OTE...) et vérifie en plus que le prix est dans une zone validée ici, avec la bonne direction.</div>
 <pre id="plan-feed-preview" style="font-size:10px;color:var(--mut);background:var(--bg2);border:1px solid var(--line);border-radius:8px;padding:10px;overflow-x:auto;margin-bottom:10px;max-height:160px"></pre>
 <div class="bot-ctrls">
@@ -529,9 +515,6 @@ function render(row){
     return `<div class="pcard ${dirClass}${activeClass}" data-plan="${k}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div>${histHtml}</div></div>`;
   }).join('');
   document.getElementById('discipline-box').textContent = row.discipline || '—';
-  if(!document.getElementById('vp-val').value) document.getElementById('vp-val').value = row.day_low ?? '';
-  if(!document.getElementById('vp-poc').value) document.getElementById('vp-poc').value = row.price ?? '';
-  if(!document.getElementById('vp-vah').value) document.getElementById('vp-vah').value = row.day_high ?? '';
   renderPlanFeedPreview();
   document.getElementById('foot-box').innerHTML = `Point Gold · généré automatiquement (Gmail + Twelve Data + Claude) · dernière génération ${row.generated_at ? new Date(row.generated_at).toLocaleString('fr-FR') : '—'} · Source : Supabase <b>cockpit_state</b>.`;
 }
@@ -559,33 +542,6 @@ async function triggerUpdate(){
     document.getElementById('statusLine').innerHTML = `<span class="err">Échec MAJ : ${e.message}</span>`;
   }finally{
     btn.disabled = false; btn.textContent = '🔄 Mettre à jour';
-  }
-}
-async function sendToBotNow(){
-  const val = parseFloat(document.getElementById('vp-val').value);
-  const poc = parseFloat(document.getElementById('vp-poc').value);
-  const vah = parseFloat(document.getElementById('vp-vah').value);
-  const status = document.getElementById('bot-status');
-  if(!val || !poc || !vah){ status.innerHTML = '<span style="color:var(--amber)">⚠ Remplis VAL/POC/VAH avant d\'envoyer</span>'; return; }
-  status.innerHTML = '<span style="color:var(--cyan)">📤 Envoi en cours...</span>';
-  try {
-    const payload = { bot_id: 'XAU', plan_date: new Date().toISOString().split('T')[0], val: val, poc: poc, vah: vah, bias: '', allow_plans: 'A,B,C,D', note: 'Cockpit du jour (auto)', active: true };
-    await fetch(`${SB_URL}/rest/v1/daily_plans?bot_id=eq.XAU&active=eq.true`, { method: 'PATCH', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }) });
-    const res = await fetch(`${SB_URL}/rest/v1/daily_plans`, { method: 'POST', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=minimal' }, body: JSON.stringify(payload) });
-    if(!res.ok) throw new Error(`HTTP ${res.status}`);
-    status.innerHTML = '<span style="color:var(--bull)">✓ Plan envoyé! Bot le chargera dans ~60s</span>';
-  } catch(e) {
-    status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
-  }
-}
-async function deactivatePlan(){
-  const status = document.getElementById('bot-status');
-  status.innerHTML = '<span style="color:var(--cyan)">⏹ Désactivation...</span>';
-  try {
-    await fetch(`${SB_URL}/rest/v1/daily_plans?bot_id=eq.XAU&active=eq.true`, { method: 'PATCH', headers: { 'apikey': SB_KEY, 'Content-Type': 'application/json' }, body: JSON.stringify({ active: false }) });
-    status.innerHTML = '<span style="color:var(--bull)">✓ Plan désactivé — bot repasse VP auto</span>';
-  } catch(e) {
-    status.innerHTML = `<span style="color:var(--bear)">✗ Erreur: ${e.message}</span>`;
   }
 }
 function buildPlansData(){
