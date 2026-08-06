@@ -35,18 +35,20 @@ async function tdGet(path, params) {
 }
 
 async function fetchGate() {
-  const [price, ema5, ema8, stoch] = await Promise.all([
+  const [price, ema5, ema8, stoch, atr] = await Promise.all([
     tdGet('/price', { symbol: SYMBOL }),
     tdGet('/ema', { symbol: SYMBOL, interval: '15min', time_period: 5, outputsize: 1 }),
     tdGet('/ema', { symbol: SYMBOL, interval: '15min', time_period: 8, outputsize: 1 }),
-    tdGet('/stoch', { symbol: SYMBOL, interval: '15min', fast_k_period: 5, slow_k_period: 3, slow_d_period: 3, outputsize: 1 })
+    tdGet('/stoch', { symbol: SYMBOL, interval: '15min', fast_k_period: 5, slow_k_period: 3, slow_d_period: 3, outputsize: 1 }),
+    tdGet('/atr', { symbol: SYMBOL, interval: '15min', time_period: 14, outputsize: 1 })
   ]);
   return {
     price: parseFloat(price.price),
     ema5: parseFloat(ema5.values?.[0]?.ema),
     ema8: parseFloat(ema8.values?.[0]?.ema),
     stoch_k: parseFloat(stoch.values?.[0]?.slow_k),
-    stoch_d: parseFloat(stoch.values?.[0]?.slow_d)
+    stoch_d: parseFloat(stoch.values?.[0]?.slow_d),
+    atr14: parseFloat(atr.values?.[0]?.atr)
   };
 }
 
@@ -114,30 +116,44 @@ async function deletePushSubscription(id) {
 
 async function getOpenTrades() {
   const res = await fetch(
-    `${SUPABASE_URL}/rest/v1/cockpit_trades?select=id,ticket,direction,plan_ids,entry_price,gate_misaligned_since&status=eq.open`,
+    `${SUPABASE_URL}/rest/v1/cockpit_trades?select=id,ticket,direction,plan_ids,entry_price,plan_invalidation,gate_misaligned_since,gate_alert_severity&status=eq.open`,
     { headers: sbHeaders() }
   );
   if (!res.ok) return [];
   return res.json();
 }
 
-async function patchTradeMisaligned(id, misalignedSince) {
+async function patchTradeMisaligned(id, misalignedSince, severity) {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/cockpit_trades?id=eq.${id}`, {
     method: 'PATCH',
     headers: { ...sbHeaders(), Prefer: 'return=minimal' },
-    body: JSON.stringify({ gate_misaligned_since: misalignedSince })
+    body: JSON.stringify({ gate_misaligned_since: misalignedSince, gate_alert_severity: severity })
   });
   if (!res.ok) console.error('patch gate_misaligned_since a échoué:', res.status);
 }
 
-async function notifyTradeMisaligned(trade, market, gateVerdict) {
+// "Le marché respire encore" vs "le setup est mort" : on compare la distance actuelle
+// entre le prix et le niveau d'invalidation du plan à l'ATR(14) M15 courant.
+// - distance > 1x ATR  -> watch (gate désaligné mais structure encore saine, pas de push)
+// - distance <= 1x ATR (ou invalidation déjà franchie) -> critical (push envoyé)
+function computeSeverity(trade, market) {
+  if (trade.plan_invalidation == null || !market.atr14) return 'watch';
+  const distance = Math.abs(market.price - parseFloat(trade.plan_invalidation));
+  const breached = trade.direction === 'buy'
+    ? market.price <= parseFloat(trade.plan_invalidation)
+    : market.price >= parseFloat(trade.plan_invalidation);
+  if (breached || distance <= market.atr14) return 'critical';
+  return 'watch';
+}
+
+async function notifyTradeMisaligned(trade, market, gateVerdict, severity) {
   ensureVapid();
   if (!vapidConfigured) return;
   const subs = await getPushSubscriptions().catch(() => []);
   if (!subs.length) return;
   const dirLabel = trade.direction === 'sell' ? 'Vente' : 'Achat';
-  const title = `⚠️ Trade #${trade.ticket} désaligné`;
-  const body = `${dirLabel} (plan ${trade.plan_ids || '?'}) — gate M15 a basculé ${gateVerdict.toLowerCase()} à ${market.price}. Sécuriser/clôturer ?`;
+  const title = `🔴 Trade #${trade.ticket} critique`;
+  const body = `${dirLabel} (plan ${trade.plan_ids || '?'}) — gate M15 ${gateVerdict.toLowerCase()} ET prix proche de l'invalidation (${trade.plan_invalidation}) à ${market.price}. Sécuriser/clôturer ?`;
   const payload = JSON.stringify({ title, body, tag: `trade-misalign-${trade.ticket}`, url: '/' });
   await Promise.all(
     subs.map((s) =>
@@ -151,8 +167,10 @@ async function notifyTradeMisaligned(trade, market, gateVerdict) {
   );
 }
 
-// Compare chaque trade ouvert au gate M15 courant. Ne notifie qu'au moment de la bascule
-// (aligné -> désaligné), pas à chaque poll — sinon spam de notifs toutes les 5 min.
+// Compare chaque trade ouvert au gate M15 courant. Ne pousse une notif que quand la
+// sévérité atteint "critical" (gate désaligné ET prix proche de plan_invalidation) —
+// un simple désalignement gate sans danger structurel (severity=watch) reste silencieux
+// pour éviter l'effet "crier au loup" sur les oscillations normales du marché.
 async function checkOpenTradesGate(market, gateVerdict) {
   const gateBull = market.ema5 > market.ema8;
   let trades = [];
@@ -166,17 +184,21 @@ async function checkOpenTradesGate(market, gateVerdict) {
   for (const t of trades) {
     const tradeBull = t.direction === 'buy';
     const aligned = tradeBull === gateBull;
-    const wasMisaligned = !!t.gate_misaligned_since;
-    if (!aligned && !wasMisaligned) {
-      const since = new Date().toISOString();
-      await patchTradeMisaligned(t.id, since).catch(() => {});
-      await notifyTradeMisaligned(t, market, gateVerdict).catch(err => console.error('notify trade misaligned a échoué:', err));
-      results.push({ ...t, aligned: false, gate_misaligned_since: since });
-    } else if (aligned && wasMisaligned) {
-      await patchTradeMisaligned(t.id, null).catch(() => {});
-      results.push({ ...t, aligned: true, gate_misaligned_since: null });
+    const severity = aligned ? 'none' : computeSeverity(t, market);
+    const prevSeverity = t.gate_alert_severity || 'none';
+
+    if (!aligned) {
+      const since = t.gate_misaligned_since || new Date().toISOString();
+      if (severity !== prevSeverity) await patchTradeMisaligned(t.id, since, severity).catch(() => {});
+      if (severity === 'critical' && prevSeverity !== 'critical') {
+        await notifyTradeMisaligned(t, market, gateVerdict, severity).catch(err => console.error('notify trade misaligned a échoué:', err));
+      }
+      results.push({ ...t, aligned: false, severity, gate_misaligned_since: since });
+    } else if (prevSeverity !== 'none') {
+      await patchTradeMisaligned(t.id, null, null).catch(() => {});
+      results.push({ ...t, aligned: true, severity: 'none', gate_misaligned_since: null });
     } else {
-      results.push({ ...t, aligned, gate_misaligned_since: t.gate_misaligned_since || null });
+      results.push({ ...t, aligned: true, severity: 'none', gate_misaligned_since: null });
     }
   }
   return results;

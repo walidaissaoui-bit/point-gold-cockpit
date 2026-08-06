@@ -71,9 +71,11 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .active-plan-banner .ap-reason{color:var(--mut);line-height:1.4}
 .active-plan-banner.none{border-color:var(--line);background:var(--bg2);color:var(--mut)}
 .trade-warn-banner{border:1px solid rgba(255,80,110,.45);background:rgba(255,80,110,.09);border-radius:12px;padding:11px 14px;margin-bottom:13px;font-size:12.5px;color:var(--txt)}
+.trade-warn-banner.watch{border-color:rgba(255,177,61,.45);background:rgba(255,177,61,.08)}
 .trade-warn-banner .tw-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
 .trade-warn-banner .tw-row+.tw-row{margin-top:6px}
 .trade-warn-banner .tw-ticket{font-weight:700;color:var(--bear);white-space:nowrap}
+.trade-warn-banner .tw-row.watch .tw-ticket{color:var(--amber)}
 .trade-warn-banner .tw-detail{color:var(--mut);line-height:1.4}
 .plans-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
 @media(max-width:620px){.plans-grid{grid-template-columns:1fr}}
@@ -657,11 +659,24 @@ function renderTradeWarnings(openTradesGate, gateVerdict){
   if(!box) return;
   const misaligned = (openTradesGate || []).filter(t => t.aligned === false);
   if(!misaligned.length){ box.innerHTML = ''; return; }
-  const rows = misaligned.map(t => {
-    const dirLabel = t.direction === 'sell' ? 'Vente' : 'Achat';
-    return `<div class="tw-row"><span class="tw-ticket">⚠ Trade #${t.ticket}</span><span class="tw-detail">${dirLabel} (plan ${t.plan_ids||'?'}) — gate M15 basculé ${(gateVerdict||'').toLowerCase()}, position non alignée. Sécuriser ou clôturer ?</span></div>`;
-  }).join('');
-  box.innerHTML = `<div class="trade-warn-banner">${rows}</div>`;
+  const critical = misaligned.filter(t => t.severity === 'critical');
+  const watch = misaligned.filter(t => t.severity !== 'critical');
+  let html = '';
+  if(critical.length){
+    const rows = critical.map(t => {
+      const dirLabel = t.direction === 'sell' ? 'Vente' : 'Achat';
+      return `<div class="tw-row"><span class="tw-ticket">🔴 Trade #${t.ticket}</span><span class="tw-detail">${dirLabel} (plan ${t.plan_ids||'?'}) — gate M15 ${(gateVerdict||'').toLowerCase()} ET prix proche de l'invalidation (${t.plan_invalidation ?? '—'}). Setup probablement mort — sécuriser ou clôturer ?</span></div>`;
+    }).join('');
+    html += `<div class="trade-warn-banner">${rows}</div>`;
+  }
+  if(watch.length){
+    const rows = watch.map(t => {
+      const dirLabel = t.direction === 'sell' ? 'Vente' : 'Achat';
+      return `<div class="tw-row watch"><span class="tw-ticket">🟡 Trade #${t.ticket}</span><span class="tw-detail">${dirLabel} (plan ${t.plan_ids||'?'}) — gate M15 ${(gateVerdict||'').toLowerCase()}, mais prix encore loin de l'invalidation (${t.plan_invalidation ?? '—'}). Le marché respire, à surveiller.</span></div>`;
+    }).join('');
+    html += `<div class="trade-warn-banner watch">${rows}</div>`;
+  }
+  box.innerHTML = html;
 }
 
 async function pollLiveGate(){
