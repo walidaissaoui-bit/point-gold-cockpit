@@ -87,6 +87,10 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .pline .pk{color:var(--mut);min-width:66px;flex-shrink:0;text-transform:uppercase;font-size:10px;letter-spacing:.5px;padding-top:2px}
 .pline .pv{font-family:"JetBrains Mono",monospace}
 .pline .pv.inval{color:var(--bear)}
+.phist{margin-top:9px;padding-top:9px;border-top:1px dashed var(--line);font-size:10.5px;color:var(--mut);line-height:1.6}
+.phist .ph-row{display:flex;gap:7px}
+.phist .ph-row .ph-t{font-family:"JetBrains Mono",monospace;white-space:nowrap;color:var(--gold-dim)}
+.phist .ph-row.ph-cur .ph-t{color:var(--gold)}
 .foot{font-size:11px;color:var(--mut);line-height:1.7;text-align:center;padding:6px 10px 2px}
 .foot b{color:var(--gold-dim)}
 .discl{font-size:12px;color:var(--mut);line-height:1.6}
@@ -218,6 +222,27 @@ async function fetchLatest(){
   const res = await fetch(`${SB_URL}/rest/v1/cockpit_state?bot_id=eq.XAU&order=generated_at.desc&limit=1`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
   const rows = await res.json();
   return rows[0] || null;
+}
+async function fetchPlanHistory(){
+  try{
+    const res = await fetch(`${SB_URL}/rest/v1/cockpit_state?bot_id=eq.XAU&status=eq.ok&order=generated_at.desc&limit=6&select=generated_at,plans`, { headers: { apikey: SB_KEY, Authorization: `Bearer ${SB_KEY}` } });
+    const rows = await res.json();
+    // pour chaque lettre A/B/C/D, liste dédupliquée des zones (plus récent d'abord), en sautant la ligne courante (index 0)
+    const hist = { A: [], B: [], C: [], D: [] };
+    ['A','B','C','D'].forEach(k => {
+      let lastZone = null;
+      rows.forEach((row, i) => {
+        const p = row.plans && row.plans[k];
+        if(!p || !Array.isArray(p.zone)) return;
+        const zoneKey = p.zone.join('-');
+        if(zoneKey === lastZone) return; // zone inchangée par rapport à la génération juste avant
+        lastZone = zoneKey;
+        if(i === 0) return; // la génération courante est déjà affichée dans la carte elle-même
+        hist[k].push({ zone: p.zone, at: row.generated_at });
+      });
+    });
+    return hist;
+  }catch(e){ return { A: [], B: [], C: [], D: [] }; }
 }
 async function fetchLatestFundamental(){
   try{
@@ -370,6 +395,7 @@ function renderLevelsChart(chart, levels, curPriceFallback){
   });
   levelsChart.timeScale().fitContent();
 }
+let planHistory = { A: [], B: [], C: [], D: [] };
 function render(row){
   const statusLine = document.getElementById('statusLine');
   if(!row){ statusLine.innerHTML = '<span class="err">Aucune donnée pour le moment.</span>'; return; }
@@ -427,7 +453,14 @@ function render(row){
     const dirClass = p.dir === 'sell' ? 'sell' : 'buy';
     const dirLabel = p.dir === 'sell' ? 'Vente' : 'Achat';
     const activeClass = (ap && ap.letter === k) ? ' active-plan' : '';
-    return `<div class="pcard ${dirClass}${activeClass}" data-plan="${k}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div></div></div>`;
+    const hEntries = (planHistory[k] || []);
+    let histHtml = '';
+    if(hEntries.length){
+      const rowsHtml = [`<div class="ph-row ph-cur"><span class="ph-t">${row.generated_at ? new Date(row.generated_at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : ''}</span><span>${fmtRange(p.zone)} (actuelle)</span></div>`]
+        .concat(hEntries.map(h => `<div class="ph-row"><span class="ph-t">${h.at ? new Date(h.at).toLocaleTimeString('fr-FR',{hour:'2-digit',minute:'2-digit'}) : ''}</span><span>${fmtRange(h.zone)}</span></div>`));
+      histHtml = `<div class="phist">${rowsHtml.join('')}</div>`;
+    }
+    return `<div class="pcard ${dirClass}${activeClass}" data-plan="${k}"><div class="pcard-h"><span class="pname">Plan ${k}</span><span class="pdir ${dirClass}">${dirLabel}</span><span class="prole">${p.role||''}</span></div><div class="pcard-b"><div class="pline"><span class="pk">Zone</span><span class="pv">${fmtRange(p.zone)}</span></div><div class="pline"><span class="pk">Déclencheur</span><span class="pv">${p.trigger||''}</span></div><div class="pline"><span class="pk">Cibles</span><span class="pv">${fmtTargets(p.targets)}</span></div><div class="pline"><span class="pk">Invalide</span><span class="pv inval">${fmt(p.invalid)}</span></div>${histHtml}</div></div>`;
   }).join('');
   document.getElementById('discipline-box').textContent = row.discipline || '—';
   if(!document.getElementById('vp-val').value) document.getElementById('vp-val').value = row.day_low ?? '';
@@ -437,6 +470,7 @@ function render(row){
   document.getElementById('foot-box').innerHTML = `Point Gold · généré automatiquement (Gmail + Twelve Data + Claude) · dernière génération ${row.generated_at ? new Date(row.generated_at).toLocaleString('fr-FR') : '—'} · Source : Supabase <b>cockpit_state</b>.`;
 }
 async function loadAll(){
+  try { planHistory = await fetchPlanHistory(); } catch(e){ /* non-bloquant */ }
   try { render(await fetchLatest()); }
   catch(e){ document.getElementById('statusLine').innerHTML = `<span class="err">${e.message}</span>`; }
   try { renderFundamental(await fetchLatestFundamental()); }
