@@ -166,8 +166,9 @@ async function fetchMarketData() {
 }
 
 async function synthesize(emails, market) {
-  const emailsBlock = emails.slice(0, 20).map(e =>
-    `--- ${e.analyst || e.from} (${e.date}) ---\n${e.subject}\n${e.body}`
+  const emailList = emails.slice(0, 20);
+  const emailsBlock = emailList.map((e, i) =>
+    `--- [${i}] ${e.analyst || e.from} (${e.date}) ---\n${e.subject}\n${e.body}`
   ).join('\n\n');
 
   const system = `Tu es l'analyste du cockpit de trading "Point Gold" (XAU/USD) de Walid.
@@ -188,6 +189,9 @@ au format exact suivant :
     "bull": [{"who": "nom analyste", "note": "résumé court de sa thèse"}],
     "summary": "string, synthèse nette 1-2 phrases"
   },
+  "analyst_calls": [
+    {"email_index": number, "direction": "buy|sell|neutral", "entry_zone_low": number|null, "entry_zone_high": number|null, "sl": number|null, "tp1": number|null, "tp2": number|null, "note": "string court"}
+  ],
   "plans": {
     "A": {"dir": "buy|sell", "role": "string", "zone": [low, high], "trigger": "string", "targets": [n, n], "invalid": number, "reversal": boolean},
     "B": {...}, "C": {...}, "D": {...}
@@ -199,6 +203,11 @@ tendance en cours (mean-reversion, résistance/support attendu à tenir), et fal
 tendance en cours ou une continuation/breakout. NE PAS te baser sur la lettre du plan (A/B/C/D) —
 cela dépend uniquement de la logique de marché décrite ce jour-là ; un plan A peut très bien être le
 reversal un jour donné et B la continuation un autre jour.
+Pour "analyst_calls" : ajoute UNE entrée par email listé ci-dessous portant un numéro [i] ET un
+analyste identifié (ignore les emails sans analyste identifié). "email_index" doit correspondre
+exactement au numéro [i] de l'email dans la liste EMAILS ANALYSTES. Si l'email ne contient pas de
+plan de trade exploitable (pas de zone d'entrée claire), mets "direction":"neutral" et laisse les
+champs numériques à null plutôt que d'omettre l'entrée.
 Base les niveaux clés et les plans A/B/C/D sur la synthèse des emails d'analystes ET sur les
 données de marché fournies (prix, range, EMA, Stoch). Si une info manque, fais une estimation
 raisonnable plutôt que de casser le JSON.`;
@@ -260,6 +269,42 @@ async function logActivePlanChange(entry) {
     body: JSON.stringify(entry)
   });
   if (!res.ok) console.error('active_plan_log insert a échoué:', res.status, (await res.text()).slice(0, 300));
+}
+
+async function writeAnalystCalls(emailList, analystCalls, tradingDate) {
+  if (!Array.isArray(analystCalls) || !analystCalls.length) return;
+  const rows = analystCalls
+    .map(c => {
+      const email = emailList[c.email_index];
+      if (!email || !email.analyst) return null;
+      return {
+        analyst_name: email.analyst,
+        trading_date: tradingDate,
+        published_at: email.date ? new Date(email.date).toISOString() : new Date().toISOString(),
+        symbol: 'XAUUSD',
+        gmail_thread_id: email.id || null,
+        direction: ['buy', 'sell', 'neutral'].includes(c.direction) ? c.direction : 'neutral',
+        entry_zone_low: c.entry_zone_low ?? null,
+        entry_zone_high: c.entry_zone_high ?? null,
+        sl: c.sl ?? null,
+        tp1: c.tp1 ?? null,
+        tp2: c.tp2 ?? null,
+        note: c.note || null
+      };
+    })
+    .filter(Boolean);
+  if (!rows.length) return;
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/analyst_calls?on_conflict=gmail_thread_id`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+      Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`,
+      Prefer: 'resolution=merge-duplicates,return=minimal'
+    },
+    body: JSON.stringify(rows)
+  });
+  if (!res.ok) console.error('Insert analyst_calls a échoué:', res.status, (await res.text()).slice(0, 300));
 }
 
 async function writeCockpitState(row) {
@@ -329,6 +374,7 @@ module.exports = async (req, res) => {
     };
 
     await writeCockpitState(row);
+    await writeAnalystCalls(emails.slice(0, 20), synth.analyst_calls, row.run_date).catch(err => console.error('writeAnalystCalls a échoué:', err));
 
     const previousLetter = await getPreviousActiveLetter().catch(() => null);
     if (activePlan.letter !== previousLetter) {
