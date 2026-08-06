@@ -81,6 +81,9 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 .tradability-btn{background:rgba(255,206,74,.12);border:1px solid var(--gold);color:var(--gold);border-radius:8px;padding:6px 12px;cursor:pointer;font-size:11px;font-weight:600;margin-bottom:10px}
 .tradability-btn:disabled{opacity:.5;cursor:default}
 .tradability-status{font-size:11px;color:var(--mut);margin-bottom:10px}
+.lb-badge{font-size:10px;padding:3px 8px;border-radius:6px;font-weight:600;white-space:nowrap}
+.lb-flag{background:rgba(255,80,110,.14);color:var(--bear);border:1px solid var(--bear)}
+.lb-favor{background:rgba(43,229,139,.14);color:var(--bull);border:1px solid var(--bull)}
 .cal-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:5px}
 .cal-dow{font-size:9px;color:var(--mut);text-align:center;text-transform:uppercase;padding-bottom:4px}
 .cal-cell{aspect-ratio:1;border:1px solid var(--line);border-radius:8px;background:var(--bg2);display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:10px;cursor:pointer;position:relative}
@@ -610,34 +613,58 @@ document.getElementById('tradabilityBackfillBtn').addEventListener('click', asyn
 });
 
 /* ============== LEADERBOARD (agrégé depuis analyst_calls) ============== */
+const RELIABILITY_MIN_DECIDED_FLAG = 2;   // seuil "trop de SL" : dès 2 calls décidés (validé Walid 07/08)
+const RELIABILITY_SL_RATE_FLAG = 0.5;     // >= 50% de SL sur le mois glissant
+const RELIABILITY_MIN_DECIDED_FAVOR = 3;  // seuil "à privilégier"
+const RELIABILITY_WIN_RATE_FAVOR = 0.7;   // >= 70% de réussite sur le mois glissant
+
 function renderLeaderboard(){
   const box = document.getElementById('leaderboard');
   if(!ALL_CALLS.length){ box.innerHTML = '<div class="empty">Aucun call analyste enregistré (notation manuelle, non automatisée)</div>'; return; }
+  const thirtyDaysAgo = new Date(Date.now() - 30*24*3600*1000).toISOString().split('T')[0];
   const byAnalyst = {};
   for(const c of ALL_CALLS){
     const k = c.analyst_name;
-    if(!byAnalyst[k]) byAnalyst[k] = { total:0, correct:0, decided:0, scoreSum:0, scoreN:0 };
+    if(!byAnalyst[k]) byAnalyst[k] = { total:0, correct:0, decided:0, scoreSum:0, scoreN:0, rDecided:0, rCorrect:0, rIncorrect:0 };
     const a = byAnalyst[k];
     a.total++;
-    if(c.verdict_direction === 'correct' || c.verdict_direction === 'incorrect'){
+    const decidedNow = c.verdict_direction === 'correct' || c.verdict_direction === 'incorrect';
+    if(decidedNow){
       a.decided++;
       if(c.verdict_direction === 'correct') a.correct++;
+      if(c.trading_date >= thirtyDaysAgo){
+        a.rDecided++;
+        if(c.verdict_direction === 'correct') a.rCorrect++; else a.rIncorrect++;
+      }
     }
     if(c.score !== null && c.score !== undefined){ a.scoreSum += parseFloat(c.score); a.scoreN++; }
   }
-  const rows = Object.entries(byAnalyst).map(([name, a]) => ({
-    name, total: a.total, correct: a.correct, decided: a.decided,
-    acc: a.decided ? a.correct / a.decided : null,
-    avgScore: a.scoreN ? a.scoreSum / a.scoreN : null
-  })).sort((x,y) => (y.acc ?? -1) - (x.acc ?? -1));
+  const rows = Object.entries(byAnalyst).map(([name, a]) => {
+    const rWinRate = a.rDecided ? a.rCorrect / a.rDecided : null;
+    const rSlRate = a.rDecided ? a.rIncorrect / a.rDecided : null;
+    const favored = a.rDecided >= RELIABILITY_MIN_DECIDED_FAVOR && rWinRate >= RELIABILITY_WIN_RATE_FAVOR;
+    const flagged = a.rDecided >= RELIABILITY_MIN_DECIDED_FLAG && rSlRate >= RELIABILITY_SL_RATE_FLAG;
+    return {
+      name, total: a.total, correct: a.correct, decided: a.decided,
+      acc: a.decided ? a.correct / a.decided : null,
+      avgScore: a.scoreN ? a.scoreSum / a.scoreN : null,
+      favored, flagged, rDecided: a.rDecided, rWinRate, rSlRate, rIncorrect: a.rIncorrect
+    };
+  }).sort((x,y) => (y.acc ?? -1) - (x.acc ?? -1));
 
   box.innerHTML = rows.map((r,i) => {
     const color = r.acc===null ? 'var(--mut)' : r.acc>=0.6 ? 'var(--bull)' : r.acc>=0.4 ? 'var(--amber)' : 'var(--bear)';
+    const badge = r.flagged
+      ? `<span class="lb-badge lb-flag" title="${r.rIncorrect ?? ''}/${r.rDecided} SL sur 30j — ${Math.round(r.rSlRate*100)}%">⚠️ trop de SL (30j)</span>`
+      : r.favored
+        ? `<span class="lb-badge lb-favor" title="${Math.round(r.rWinRate*100)}% de réussite sur ${r.rDecided} calls (30j)">⭐ à privilégier</span>`
+        : '';
     return `<div class="lb-row"><span class="rank">#${i+1}</span>
       <span class="name">${esc(r.name)}</span>
       <span class="stat">${r.correct}/${r.decided || 0}</span>
       <span class="acc" style="color:${color}">${r.acc!==null ? Math.round(r.acc*100)+'%' : '—'}</span>
       ${r.avgScore!==null ? `<span class="stat">${r.avgScore>0?'+':''}${fmt(r.avgScore)}</span>` : ''}
+      ${badge}
     </div>`;
   }).join('');
 }

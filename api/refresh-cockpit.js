@@ -102,6 +102,49 @@ async function fetchAnalystEmails() {
 
 const TD_BASE = 'https://api.twelvedata.com';
 
+// Fiabilité récente des analystes (mois glissant, 30j) — basée sur analyst_calls.verdict_direction
+// déjà calculé par api/analyze-tradability.js. Sert à orienter la synthèse : privilégier les
+// analystes fiables, se méfier de ceux qui enchaînent les SL (décision Walid du 07/08).
+const RELIABILITY_MIN_DECIDED_FLAG = 2;   // seuil "trop de SL" : dès 2 calls décidés
+const RELIABILITY_SL_RATE_FLAG = 0.5;     // >= 50% de SL sur la fenêtre
+const RELIABILITY_MIN_DECIDED_FAVOR = 3;  // seuil "à privilégier" : au moins 3 calls décidés
+const RELIABILITY_WIN_RATE_FAVOR = 0.7;   // >= 70% de réussite
+
+async function fetchAnalystReliability() {
+  const since = new Date(Date.now() - 30 * 24 * 3600 * 1000).toISOString().split('T')[0];
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/analyst_calls?select=analyst_name,verdict_direction&trading_date=gte.${since}&verdict_direction=in.(correct,incorrect)`,
+    {
+      headers: {
+        apikey: process.env.SUPABASE_SERVICE_ROLE_KEY,
+        Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`
+      }
+    }
+  );
+  if (!res.ok) return { favored: [], flagged: [] };
+  const rows = await res.json();
+  const byAnalyst = {};
+  for (const r of rows) {
+    const a = (byAnalyst[r.analyst_name] ||= { correct: 0, incorrect: 0 });
+    if (r.verdict_direction === 'correct') a.correct++;
+    else a.incorrect++;
+  }
+  const favored = [];
+  const flagged = [];
+  for (const [name, s] of Object.entries(byAnalyst)) {
+    const decided = s.correct + s.incorrect;
+    const winRate = decided ? s.correct / decided : 0;
+    const slRate = decided ? s.incorrect / decided : 0;
+    if (decided >= RELIABILITY_MIN_DECIDED_FAVOR && winRate >= RELIABILITY_WIN_RATE_FAVOR) {
+      favored.push({ name, decided, winRate });
+    }
+    if (decided >= RELIABILITY_MIN_DECIDED_FLAG && slRate >= RELIABILITY_SL_RATE_FLAG) {
+      flagged.push({ name, decided, slRate });
+    }
+  }
+  return { favored, flagged };
+}
+
 async function tdGet(path, params) {
   const url = new URL(TD_BASE + path);
   url.searchParams.set('apikey', process.env.TWELVEDATA_API_KEY);
@@ -165,16 +208,32 @@ async function fetchMarketData() {
   };
 }
 
-async function synthesize(emails, market) {
+async function synthesize(emails, market, reliability) {
   const emailList = emails.slice(0, 20);
   const emailsBlock = emailList.map((e, i) =>
     `--- [${i}] ${e.analyst || e.from} (${e.date}) ---\n${e.subject}\n${e.body}`
   ).join('\n\n');
 
+  const favoredLine = (reliability && reliability.favored.length)
+    ? reliability.favored.map(f => `${f.name} (${Math.round(f.winRate * 100)}% sur ${f.decided} calls)`).join(', ')
+    : '(aucun, historique insuffisant)';
+  const flaggedLine = (reliability && reliability.flagged.length)
+    ? reliability.flagged.map(f => `${f.name} (${Math.round(f.slRate * 100)}% de SL sur ${f.decided} calls)`).join(', ')
+    : '(aucun)';
+
   const system = `Tu es l'analyste du cockpit de trading "Point Gold" (XAU/USD) de Walid.
 Méthode v3.x : la porte d'entrée (gate) est purement technique — Stoch(5,3,3) et EMA5/EMA8
 sur bougies M15 CLÔTURÉES, confirmation de structure BOS/CHoCH. AUCUNE fenêtre horaire :
 ne jamais suggérer d'attendre une heure précise, le setup prime.
+FIABILITÉ RÉCENTE DES ANALYSTES (30 derniers jours, calculée sur les résultats réels zone/SL/TP) :
+- À privilégier (bon taux de réussite récent) : ${favoredLine}
+- À pondérer avec prudence (trop de SL récemment, ≥50% d'échec sur au moins 2 calls décidés) : ${flaggedLine}
+Utilise cette fiabilité pour arbitrer les confluences et pondérer les plans A/B/C/D : une thèse
+d'un analyste "à privilégier" doit peser plus dans la construction des plans ; une thèse d'un
+analyste "à pondérer avec prudence" ne doit pas être ignorée mais doit être traitée avec plus de
+scepticisme (zone resserrée, invalidation plus proche, ou simplement mentionnée sans lui donner le
+rôle principal d'un plan) sauf si elle est confirmée par la structure technique ou d'autres
+analystes fiables.
 Tu dois répondre STRICTEMENT en JSON valide, sans texte avant/après, sans balises markdown,
 au format exact suivant :
 {
@@ -328,12 +387,13 @@ module.exports = async (req, res) => {
   }
 
   try {
-    const [emails, market] = await Promise.all([
+    const [emails, market, reliability] = await Promise.all([
       fetchAnalystEmails().catch(err => { console.error('Gmail:', err.message); return []; }),
-      fetchMarketData()
+      fetchMarketData(),
+      fetchAnalystReliability().catch(err => { console.error('fetchAnalystReliability:', err.message); return { favored: [], flagged: [] }; })
     ]);
 
-    const synth = await synthesize(emails, market);
+    const synth = await synthesize(emails, market, reliability);
 
     const activePlan = selectActivePlan(synth.plans || {}, {
       price: market.price, ema5: market.ema5, ema8: market.ema8
