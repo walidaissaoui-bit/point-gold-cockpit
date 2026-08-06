@@ -23,6 +23,11 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .tab.active{color:var(--gold);border-color:rgba(255,206,74,.45);background:rgba(255,206,74,.08)}
 .tab:hover{color:var(--txt)}
 .card{border:1px solid var(--line);border-radius:16px;padding:16px 18px;margin-bottom:14px;background:linear-gradient(180deg,var(--panel),var(--bg2))}
+.card h2{cursor:pointer;user-select:none}
+.card .chev{margin-left:auto;color:var(--mut);font-size:11px;transition:transform .15s ease}
+.card.open .chev{transform:rotate(180deg)}
+.card-body{display:none}
+.card.open .card-body{display:block}
 .card h2{font-size:12px;letter-spacing:2px;text-transform:uppercase;color:var(--gold);display:flex;align-items:center;gap:9px;margin-bottom:14px;font-weight:600;flex-wrap:wrap}
 .card h2 .ix{width:22px;height:22px;border-radius:7px;background:rgba(255,206,74,.12);display:inline-flex;align-items:center;justify-content:center;font-size:12px}
 .card h2 .free{color:var(--mut);font-weight:400;text-transform:none;letter-spacing:.3px;font-size:11px}
@@ -180,31 +185,6 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 </div>
 
 <div class="card">
-  <h2><span class="ix">◉</span> Journal du bot <span class="free">· bot_logs (PointGold)</span> <span class="spacer"></span>
-    <select id="logBotFilter" class="sel"><option value="">Tous les bots</option></select>
-    <select id="logEventFilter" class="sel"><option value="">Tous les événements</option></select>
-  </h2>
-  <div class="log-stats" id="logStats"></div>
-  <div class="log-list" id="logList"><div class="empty">chargement…</div></div>
-</div>
-
-<div class="card">
-  <h2><span class="ix">⌬</span> Journal OnlyCockpit <span class="free">· onlycockpit_logs · décisions et refus d'entrée</span> <span class="spacer"></span>
-    <select id="ocBotFilter" class="sel"><option value="">Tous les bots</option></select>
-    <select id="ocLevelFilter" class="sel"><option value="">Tous les niveaux</option></select>
-  </h2>
-  <div class="log-stats" id="ocStats"></div>
-  <div class="log-list" id="ocList"><div class="empty">chargement…</div></div>
-</div>
-
-<div class="card">
-  <h2><span class="ix">▤</span> Journée <span class="free" id="dayLabel">—</span> <span class="spacer"></span>
-    <select id="dateSelect" class="sel"></select>
-  </h2>
-  <div id="heroBox"></div>
-</div>
-
-<div class="card">
   <h2><span class="ix">◫</span> Calendrier mensuel <span class="free">P&amp;L par jour</span></h2>
   <div class="cal-head">
     <button id="calPrev">‹ préc.</button>
@@ -212,6 +192,13 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
     <button id="calNext">suiv. ›</button>
   </div>
   <div class="cal-grid" id="calGrid"></div>
+</div>
+
+<div class="card">
+  <h2><span class="ix">▤</span> Journée <span class="free" id="dayLabel">—</span> <span class="spacer"></span>
+    <select id="dateSelect" class="sel"></select>
+  </h2>
+  <div id="heroBox"></div>
 </div>
 
 <div class="card">
@@ -223,6 +210,15 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 <div class="card">
   <h2><span class="ix">🎯</span> Plans vs Réalité</h2>
   <div class="pvr-grid" id="pvrGrid"><div class="empty">Pas de plans enregistrés pour cette date</div></div>
+</div>
+
+<div class="card">
+  <h2><span class="ix">⌬</span> Journal OnlyCockpit <span class="free">· onlycockpit_logs · décisions et refus d'entrée</span> <span class="spacer"></span>
+    <select id="ocBotFilter" class="sel"><option value="">Tous les bots</option></select>
+    <select id="ocLevelFilter" class="sel"><option value="">Tous les niveaux</option></select>
+  </h2>
+  <div class="log-stats" id="ocStats"></div>
+  <div class="log-list" id="ocList"><div class="empty">chargement…</div></div>
 </div>
 
 <div class="card">
@@ -275,66 +271,24 @@ async function sb(path){
   return res.json();
 }
 
-/* ============== JOURNAL BOT (bot_logs, poll 5s) ============== */
-let LOG_ROWS = [];
-const EVENT_COLOR = {
-  OPEN:'log-ok', HEDGE_OPEN:'log-ok', CLOSE:'log-neu',
-  OPEN_FAIL:'log-err', ERROR:'log-err', SIGNAL_TOO_FAR:'log-warn',
-  ENTRY_SKIP:'log-warn', HEDGE_BLOCKED:'log-warn', MAX_REACHED:'log-warn',
-  PLAN_SKIP:'log-warn', FEED_STALE:'log-warn', FEED_INACTIVE:'log-mut',
-  ZONE_ENTER:'log-neu', ZONE_EXIT:'log-mut', SIGNAL:'log-neu',
-  FEED_SYNC:'log-mut', INIT:'log-mut', HB:'log-mut', REARM:'log-mut'
-};
-function logColor(ev){ return EVENT_COLOR[ev] || 'log-mut'; }
-
-async function loadLogs(){
-  try{
-    const rows = await sb('bot_logs?select=*&order=created_at.desc&limit=150');
-    LOG_ROWS = rows;
-    populateLogFilters(rows);
-    renderLogs();
-  }catch(e){
-    document.getElementById('logList').innerHTML = `<div class="empty err">${esc(e.message)}</div>`;
-  }
-}
-function populateLogFilters(rows){
-  const botSel = document.getElementById('logBotFilter');
-  const evSel = document.getElementById('logEventFilter');
-  const bots = [...new Set(rows.map(r=>r.bot_id))].sort();
-  const evs = [...new Set(rows.map(r=>r.event))].sort();
-  if(botSel.options.length <= 1) bots.forEach(b=>{ const o=document.createElement('option'); o.value=b; o.textContent=b; botSel.appendChild(o); });
-  if(evSel.options.length <= 1) evs.forEach(e=>{ const o=document.createElement('option'); o.value=e; o.textContent=e; evSel.appendChild(o); });
-}
-function renderLogs(){
-  const botF = document.getElementById('logBotFilter').value;
-  const evF = document.getElementById('logEventFilter').value;
-  const filtered = LOG_ROWS.filter(r => (!botF || r.bot_id===botF) && (!evF || r.event===evF));
-
-  const today = fmtDate(new Date());
-  const todayRows = LOG_ROWS.filter(r => (r.created_at||'').startsWith(today));
-  const opens = todayRows.filter(r=>r.event==='OPEN'||r.event==='HEDGE_OPEN').length;
-  const closes = todayRows.filter(r=>r.event==='CLOSE').length;
-  const errors = todayRows.filter(r=>r.event==='ERROR'||r.event==='OPEN_FAIL').length;
-  document.getElementById('logStats').innerHTML = `
-    <div class="log-stat">Ouvertures (jour)<b>${opens}</b></div>
-    <div class="log-stat">Clôtures (jour)<b>${closes}</b></div>
-    <div class="log-stat">Erreurs (jour)<b>${errors}</b></div>
-    <div class="log-stat">Total affiché<b>${filtered.length}</b></div>`;
-
-  if(!filtered.length){ document.getElementById('logList').innerHTML = '<div class="empty">Aucun log</div>'; return; }
-  document.getElementById('logList').innerHTML = filtered.slice(0,80).map(r=>{
-    let payloadStr = '';
-    try{ payloadStr = typeof r.payload === 'string' ? r.payload : JSON.stringify(r.payload); }catch(e){}
-    const t = r.created_at ? new Date(r.created_at).toLocaleString('fr-FR') : '';
-    return `<div class="log-row"><span class="dot ${logColor(r.event)}"></span>
-      <div class="body"><span class="ev">${esc(r.bot_id)} · ${esc(r.event)}</span> <span class="t">${t}</span>
-      <div class="pl mono">${esc(payloadStr)}</div></div></div>`;
-  }).join('');
-}
-document.getElementById('logBotFilter').addEventListener('change', renderLogs);
-document.getElementById('logEventFilter').addEventListener('change', renderLogs);
-loadLogs();
-setInterval(loadLogs, 5000);
+/* ============== CARTES REPLIABLES (fermées par défaut) ============== */
+document.querySelectorAll('.card').forEach(card => {
+  const h2 = card.querySelector('h2');
+  if(!h2) return;
+  const body = document.createElement('div');
+  body.className = 'card-body';
+  Array.from(card.childNodes).forEach(n => { if(n !== h2) body.appendChild(n); });
+  card.appendChild(body);
+  const chev = document.createElement('span');
+  chev.className = 'chev';
+  chev.textContent = '▾';
+  h2.appendChild(chev);
+  h2.addEventListener('click', (e) => {
+    const t = e.target.tagName;
+    if(t === 'SELECT' || t === 'OPTION' || t === 'BUTTON') return;
+    card.classList.toggle('open');
+  });
+});
 
 /* ============== JOURNAL ONLYCOCKPIT (onlycockpit_logs, poll 10s) ==============
    Schéma distinct de bot_logs : bot_name / magic / level / message.
