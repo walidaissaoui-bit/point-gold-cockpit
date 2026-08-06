@@ -230,6 +230,7 @@ select,.sel{background:var(--bg2);border:1px solid var(--line);border-radius:8px
 <div class="card">
   <h2><span class="ix">✉</span> Verdicts analystes <span class="free">· pour la date sélectionnée</span></h2>
   <button id="tradabilityBtn" class="tradability-btn">🎯 Analyser la tradabilité de cette date</button>
+  <button id="tradabilityBackfillBtn" class="tradability-btn">🔁 Backfill toutes les dates</button>
   <div id="tradabilityStatus" class="tradability-status"></div>
   <div id="analystVerdicts"><div class="empty">Aucun call analyste pour cette date</div></div>
 </div>
@@ -581,6 +582,31 @@ document.getElementById('tradabilityBtn').addEventListener('click', async () => 
   } finally {
     btn.disabled = false;
   }
+});
+
+document.getElementById('tradabilityBackfillBtn').addEventListener('click', async () => {
+  const backfillBtn = document.getElementById('tradabilityBackfillBtn');
+  const btn = document.getElementById('tradabilityBtn');
+  const status = document.getElementById('tradabilityStatus');
+  const dates = [...new Set(ALL_CALLS.map(c => c.trading_date))].sort();
+  if (!dates.length) { status.textContent = 'Aucune date à traiter.'; return; }
+  backfillBtn.disabled = true; btn.disabled = true;
+  let totalUpdated = 0;
+  for (let i = 0; i < dates.length; i++) {
+    const d = dates[i];
+    status.textContent = `Backfill ${i + 1}/${dates.length} — ${d}…`;
+    try {
+      const url = `/api/analyze-tradability?date=${encodeURIComponent(d)}&secret=${encodeURIComponent(TRADABILITY_SECRET)}`;
+      const res = await fetch(url, { method: 'POST' });
+      const data = await res.json();
+      if (res.ok) totalUpdated += data.updated || 0;
+    } catch (e) { /* on continue sur les autres dates */ }
+  }
+  status.textContent = `Backfill terminé : ${totalUpdated} call(s) mis à jour sur ${dates.length} date(s).`;
+  ALL_CALLS = await sb('analyst_calls?select=*');
+  renderAnalystVerdicts(SELECTED_DATE);
+  renderLeaderboard();
+  backfillBtn.disabled = false; btn.disabled = false;
 });
 
 /* ============== LEADERBOARD (agrégé depuis analyst_calls) ============== */
