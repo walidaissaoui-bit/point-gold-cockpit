@@ -369,7 +369,8 @@ module.exports = async (req, res) => {
         reason: activePlan.reason,
         since: generatedAt,
         price: market.price,
-        misaligned: !!activePlan.misaligned
+        misaligned: !!activePlan.misaligned,
+        reasonType: activePlan.reasonType || null
       }
     };
 

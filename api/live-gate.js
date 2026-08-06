@@ -246,7 +246,8 @@ module.exports = async (req, res) => {
       reason: result.reason,
       since: new Date().toISOString(),
       price: market.price,
-      misaligned: !!result.misaligned
+      misaligned: !!result.misaligned,
+      reasonType: result.reasonType || null
     };
 
     await patchActivePlan(state.id, activePlan);

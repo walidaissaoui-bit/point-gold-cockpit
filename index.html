@@ -70,6 +70,14 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .active-plan-banner .ap-letter{font-weight:700;color:var(--gold);font-size:13px;white-space:nowrap}
 .active-plan-banner .ap-reason{color:var(--mut);line-height:1.4}
 .active-plan-banner.none{border-color:var(--line);background:var(--bg2);color:var(--mut)}
+.active-plan-banner.type-gate{border-color:rgba(58,214,207,.4);background:rgba(58,214,207,.07)}
+.active-plan-banner.type-gate .ap-letter{color:var(--cyan)}
+.active-plan-banner.type-fallback{border-color:rgba(255,177,61,.45);background:rgba(255,177,61,.08)}
+.active-plan-banner.type-fallback .ap-letter{color:var(--amber)}
+.ap-badge{font-size:10px;font-weight:700;text-transform:uppercase;letter-spacing:.5px;padding:3px 8px;border-radius:999px;white-space:nowrap}
+.ap-badge.type-single{color:var(--gold);background:rgba(255,206,74,.12)}
+.ap-badge.type-gate{color:var(--cyan);background:rgba(58,214,207,.12)}
+.ap-badge.type-fallback{color:var(--amber);background:rgba(255,177,61,.15)}
 .trade-warn-banner{border:1px solid rgba(255,80,110,.45);background:rgba(255,80,110,.09);border-radius:12px;padding:11px 14px;margin-bottom:13px;font-size:12.5px;color:var(--txt)}
 .trade-warn-banner.watch{border-color:rgba(255,177,61,.45);background:rgba(255,177,61,.08)}
 .trade-warn-banner .tw-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
@@ -412,6 +420,23 @@ function renderLevelsChart(chart, levels, curPriceFallback){
   levelsChart.timeScale().fitContent();
 }
 let planHistory = { A: [], B: [], C: [], D: [] };
+function apBadge(reasonType){
+  const map = {
+    single: { icon: '🎯', label: 'Seul à portée' },
+    gate: { icon: '⚖️', label: 'Tranché par le gate' },
+    fallback: { icon: '⚠️', label: 'À confirmer' }
+  };
+  const m = map[reasonType];
+  if(!m) return '';
+  return `<span class="ap-badge type-${reasonType}">${m.icon} ${m.label}</span>`;
+}
+function renderActivePlanBanner(ap){
+  if(ap && ap.letter){
+    const typeClass = ap.reasonType ? ` type-${ap.reasonType}` : '';
+    return `<div class="active-plan-banner${typeClass}">${apBadge(ap.reasonType)}<span class="ap-letter">Plan ${ap.letter} actif</span><span class="ap-reason">${ap.reason||''}</span></div>`;
+  }
+  return `<div class="active-plan-banner none">${(ap && ap.reason) || 'Aucun plan actif pour le moment'}</div>`;
+}
 function render(row){
   const statusLine = document.getElementById('statusLine');
   if(!row){ statusLine.innerHTML = '<span class="err">Aucune donnée pour le moment.</span>'; return; }
@@ -456,12 +481,7 @@ function render(row){
   const ap = row.active_plan || null;
   const apBox = document.getElementById('active-plan-box');
   if(apBox){
-    if(ap && ap.letter){
-      const warn = ap.misaligned ? ' <span style="color:var(--amber)">⚠ gate désaligné — à confirmer avant entrée</span>' : '';
-      apBox.innerHTML = `<div class="active-plan-banner"><span class="ap-letter">🎯 Plan ${ap.letter} actif</span><span class="ap-reason">${ap.reason||''}</span>${warn}</div>`;
-    } else {
-      apBox.innerHTML = `<div class="active-plan-banner none">${(ap && ap.reason) || 'Aucun plan actif pour le moment'}</div>`;
-    }
+    apBox.innerHTML = renderActivePlanBanner(ap);
   }
   document.getElementById('plans-grid').innerHTML = ['A','B','C','D'].map(k => {
     const p = plans[k];
@@ -695,12 +715,7 @@ async function pollLiveGate(){
     const ap = data.active_plan;
     const apBox = document.getElementById('active-plan-box');
     if(apBox){
-      if(ap.letter){
-        const warn = ap.misaligned ? ' <span style="color:var(--amber)">⚠ gate désaligné — à confirmer avant entrée</span>' : '';
-        apBox.innerHTML = `<div class="active-plan-banner"><span class="ap-letter">🎯 Plan ${ap.letter} actif</span><span class="ap-reason">${ap.reason||''}</span>${warn}</div>`;
-      } else {
-        apBox.innerHTML = `<div class="active-plan-banner none">${ap.reason || 'Aucun plan actif pour le moment'}</div>`;
-      }
+      apBox.innerHTML = renderActivePlanBanner(ap);
     }
     document.querySelectorAll('#plans-grid .pcard').forEach(card => {
       card.classList.toggle('active-plan', card.dataset.plan === ap.letter);
