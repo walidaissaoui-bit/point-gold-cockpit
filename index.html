@@ -107,6 +107,11 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .btn-send:hover{background:#5ae8e4}
 .bot-status{margin-top:10px;font-size:11px;min-height:18px}
 .err{color:var(--bear)}
+.lg-status{display:inline-flex;align-items:center;gap:6px;font-size:11px;color:var(--mut);font-weight:400;margin-left:8px}
+.lg-dot{width:7px;height:7px;border-radius:50%;display:inline-block;flex-shrink:0}
+.lg-dot.lg-green{background:var(--bull);box-shadow:0 0 5px var(--bull)}
+.lg-dot.lg-amber{background:var(--amber);box-shadow:0 0 5px var(--amber)}
+.lg-dot.lg-red{background:var(--bear);box-shadow:0 0 5px var(--bear)}
 .chart-wrap{position:relative;width:100%;height:180px}
 .chart-wrap.small{height:100px;margin-top:10px}
 .chart-empty{font-size:12px;color:var(--mut);text-align:center;padding:20px 0}
@@ -134,7 +139,7 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 <div class="win">Dernière génération<br><span style="font-size:12px;font-weight:700;letter-spacing:.5px" id="genAt">—</span></div>
 </div>
 <div class="card">
-<h2><span class="ix">◉</span> Snapshot live <span class="free" id="live-sub">chargement…</span></h2>
+<h2><span class="ix">◉</span> Snapshot live <span class="free" id="live-sub">chargement…</span><span class="lg-status" id="live-gate-status"><span class="lg-dot lg-amber"></span>Live gate : en attente</span></h2>
 <div class="live-grid" id="live-grid"><div class="lcell"><div class="ck">chargement…</div></div></div>
 </div>
 <div class="card">
@@ -617,12 +622,39 @@ if('serviceWorker' in navigator){
 }
 updatePushButtonState();
 
+let lgLastSuccess = null;
+let lgFailCount = 0;
+
+function renderLiveGateStatus(){
+  const el = document.getElementById('live-gate-status');
+  if(!el) return;
+  if(!lgLastSuccess){
+    el.innerHTML = '<span class="lg-dot lg-amber"></span>Live gate : en attente du premier poll';
+    return;
+  }
+  const ageMs = Date.now() - lgLastSuccess;
+  const ageMin = Math.floor(ageMs / 60000);
+  const ageLabel = ageMin < 1 ? 'à l\'instant' : `il y a ${ageMin} min`;
+  let dot = 'lg-green', label = `actualisé ${ageLabel}`;
+  if(ageMs > 15 * 60000){
+    dot = 'lg-red';
+    label = `en échec depuis ${ageLabel}` + (lgFailCount ? ` (${lgFailCount} tentative${lgFailCount>1?'s':''} ratée${lgFailCount>1?'s':''})` : '');
+  } else if(ageMs > 6 * 60000){
+    dot = 'lg-amber';
+    label = `dernière actualisation ${ageLabel}`;
+  }
+  el.innerHTML = `<span class="lg-dot ${dot}"></span>Live gate : ${label}`;
+}
+
 async function pollLiveGate(){
   try {
     const res = await fetch('/api/live-gate');
-    if(!res.ok) return;
+    if(!res.ok){ lgFailCount++; renderLiveGateStatus(); return; }
     const data = await res.json();
-    if(!data.ok || !data.active_plan) return;
+    if(!data.ok || !data.active_plan){ lgFailCount++; renderLiveGateStatus(); return; }
+    lgLastSuccess = Date.now();
+    lgFailCount = 0;
+    renderLiveGateStatus();
     const ap = data.active_plan;
     const apBox = document.getElementById('active-plan-box');
     if(apBox){
@@ -636,11 +668,12 @@ async function pollLiveGate(){
     document.querySelectorAll('#plans-grid .pcard').forEach(card => {
       card.classList.toggle('active-plan', card.dataset.plan === ap.letter);
     });
-  } catch(e) { /* silencieux — nouvelle tentative au prochain tick */ }
+  } catch(e) { lgFailCount++; renderLiveGateStatus(); /* nouvelle tentative au prochain tick */ }
 }
 loadAll();
 setTimeout(pollLiveGate, 15000);
 setInterval(pollLiveGate, 300000);
+setInterval(renderLiveGateStatus, 15000);
 </script>
 </body>
 </html>
