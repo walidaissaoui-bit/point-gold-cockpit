@@ -1,0 +1,20 @@
+name: Hourly cockpit refresh
+
+# Contourne la limite Vercel Hobby (1 exécution/jour par cron) : ce workflow
+# déclenche /api/refresh-cockpit via HTTP toutes les heures, lun-ven.
+# GitHub Actions cron tourne indépendamment du plan Vercel.
+
+on:
+  schedule:
+    - cron: '0 * * * 1-5'
+  workflow_dispatch: {}
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger refresh-cockpit
+        run: |
+          curl -sf -X POST "https://point-gold-cockpit.vercel.app/api/refresh-cockpit?manual=1&secret=39214b87c459b7946ad4b678e0b153ea1aeaea94ec86d78c" \
+            -o /tmp/resp.json -w "HTTP %{http_code}\n"
+          cat /tmp/resp.json
