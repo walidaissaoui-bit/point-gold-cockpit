@@ -70,6 +70,11 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 .active-plan-banner .ap-letter{font-weight:700;color:var(--gold);font-size:13px;white-space:nowrap}
 .active-plan-banner .ap-reason{color:var(--mut);line-height:1.4}
 .active-plan-banner.none{border-color:var(--line);background:var(--bg2);color:var(--mut)}
+.trade-warn-banner{border:1px solid rgba(255,80,110,.45);background:rgba(255,80,110,.09);border-radius:12px;padding:11px 14px;margin-bottom:13px;font-size:12.5px;color:var(--txt)}
+.trade-warn-banner .tw-row{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.trade-warn-banner .tw-row+.tw-row{margin-top:6px}
+.trade-warn-banner .tw-ticket{font-weight:700;color:var(--bear);white-space:nowrap}
+.trade-warn-banner .tw-detail{color:var(--mut);line-height:1.4}
 .plans-grid{display:grid;grid-template-columns:1fr 1fr;gap:13px}
 @media(max-width:620px){.plans-grid{grid-template-columns:1fr}}
 .pcard{border:1px solid var(--line);border-radius:13px;overflow:hidden;background:var(--bg2)}
@@ -173,6 +178,7 @@ body{font-family:"Space Grotesk",system-ui,sans-serif;color:var(--txt);padding:1
 <div class="card">
 <h2><span class="ix">🎯</span> Plans A / B / C / D <span class="free">· gate alignée obligatoire — pas de contrainte horaire, le setup prime</span></h2>
 <div id="active-plan-box"></div>
+<div id="trade-warn-box"></div>
 <button id="push-subscribe-btn" onclick="enablePushAlerts()" style="margin:8px 0;padding:8px 14px;border-radius:8px;border:1px solid var(--gold,#ffce4a);background:transparent;color:var(--gold,#ffce4a);font-family:inherit;cursor:pointer;">🔔 Activer les alertes plan actif</button>
 <div class="plans-grid" id="plans-grid"></div>
 </div>
@@ -646,6 +652,18 @@ function renderLiveGateStatus(){
   el.innerHTML = `<span class="lg-dot ${dot}"></span>Live gate : ${label}`;
 }
 
+function renderTradeWarnings(openTradesGate, gateVerdict){
+  const box = document.getElementById('trade-warn-box');
+  if(!box) return;
+  const misaligned = (openTradesGate || []).filter(t => t.aligned === false);
+  if(!misaligned.length){ box.innerHTML = ''; return; }
+  const rows = misaligned.map(t => {
+    const dirLabel = t.direction === 'sell' ? 'Vente' : 'Achat';
+    return `<div class="tw-row"><span class="tw-ticket">⚠ Trade #${t.ticket}</span><span class="tw-detail">${dirLabel} (plan ${t.plan_ids||'?'}) — gate M15 basculé ${(gateVerdict||'').toLowerCase()}, position non alignée. Sécuriser ou clôturer ?</span></div>`;
+  }).join('');
+  box.innerHTML = `<div class="trade-warn-banner">${rows}</div>`;
+}
+
 async function pollLiveGate(){
   try {
     const res = await fetch('/api/live-gate');
@@ -655,6 +673,10 @@ async function pollLiveGate(){
     lgLastSuccess = Date.now();
     lgFailCount = 0;
     renderLiveGateStatus();
+    if(data.market){
+      const gateVerdict = data.market.ema5 > data.market.ema8 ? 'ACHAT' : 'VENTE';
+      renderTradeWarnings(data.open_trades_gate, gateVerdict);
+    }
     const ap = data.active_plan;
     const apBox = document.getElementById('active-plan-box');
     if(apBox){

@@ -112,6 +112,76 @@ async function deletePushSubscription(id) {
   }).catch(() => {});
 }
 
+async function getOpenTrades() {
+  const res = await fetch(
+    `${SUPABASE_URL}/rest/v1/cockpit_trades?select=id,ticket,direction,plan_ids,entry_price,gate_misaligned_since&status=eq.open`,
+    { headers: sbHeaders() }
+  );
+  if (!res.ok) return [];
+  return res.json();
+}
+
+async function patchTradeMisaligned(id, misalignedSince) {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/cockpit_trades?id=eq.${id}`, {
+    method: 'PATCH',
+    headers: { ...sbHeaders(), Prefer: 'return=minimal' },
+    body: JSON.stringify({ gate_misaligned_since: misalignedSince })
+  });
+  if (!res.ok) console.error('patch gate_misaligned_since a échoué:', res.status);
+}
+
+async function notifyTradeMisaligned(trade, market, gateVerdict) {
+  ensureVapid();
+  if (!vapidConfigured) return;
+  const subs = await getPushSubscriptions().catch(() => []);
+  if (!subs.length) return;
+  const dirLabel = trade.direction === 'sell' ? 'Vente' : 'Achat';
+  const title = `⚠️ Trade #${trade.ticket} désaligné`;
+  const body = `${dirLabel} (plan ${trade.plan_ids || '?'}) — gate M15 a basculé ${gateVerdict.toLowerCase()} à ${market.price}. Sécuriser/clôturer ?`;
+  const payload = JSON.stringify({ title, body, tag: `trade-misalign-${trade.ticket}`, url: '/' });
+  await Promise.all(
+    subs.map((s) =>
+      webpush
+        .sendNotification({ endpoint: s.endpoint, keys: { p256dh: s.p256dh, auth: s.auth } }, payload)
+        .catch((err) => {
+          if (err.statusCode === 404 || err.statusCode === 410) return deletePushSubscription(s.id);
+          console.error('push send error:', err.statusCode || err.message);
+        })
+    )
+  );
+}
+
+// Compare chaque trade ouvert au gate M15 courant. Ne notifie qu'au moment de la bascule
+// (aligné -> désaligné), pas à chaque poll — sinon spam de notifs toutes les 5 min.
+async function checkOpenTradesGate(market, gateVerdict) {
+  const gateBull = market.ema5 > market.ema8;
+  let trades = [];
+  try {
+    trades = await getOpenTrades();
+  } catch (err) {
+    console.error('getOpenTrades a échoué:', err);
+    return [];
+  }
+  const results = [];
+  for (const t of trades) {
+    const tradeBull = t.direction === 'buy';
+    const aligned = tradeBull === gateBull;
+    const wasMisaligned = !!t.gate_misaligned_since;
+    if (!aligned && !wasMisaligned) {
+      const since = new Date().toISOString();
+      await patchTradeMisaligned(t.id, since).catch(() => {});
+      await notifyTradeMisaligned(t, market, gateVerdict).catch(err => console.error('notify trade misaligned a échoué:', err));
+      results.push({ ...t, aligned: false, gate_misaligned_since: since });
+    } else if (aligned && wasMisaligned) {
+      await patchTradeMisaligned(t.id, null).catch(() => {});
+      results.push({ ...t, aligned: true, gate_misaligned_since: null });
+    } else {
+      results.push({ ...t, aligned, gate_misaligned_since: t.gate_misaligned_since || null });
+    }
+  }
+  return results;
+}
+
 async function notifyActivePlanChange(result, market) {
   ensureVapid();
   if (!vapidConfigured) return; // clés VAPID pas configurées sur Vercel, on saute silencieusement
@@ -179,7 +249,13 @@ module.exports = async (req, res) => {
       }
     }
 
-    res.status(200).json({ ok: true, active_plan: activePlan, market });
+    const gateVerdict = market.ema5 > market.ema8 ? 'ACHAT' : 'VENTE';
+    const openTradesGate = await checkOpenTradesGate(market, gateVerdict).catch(err => {
+      console.error('checkOpenTradesGate a échoué:', err);
+      return [];
+    });
+
+    res.status(200).json({ ok: true, active_plan: activePlan, market, open_trades_gate: openTradesGate });
   } catch (err) {
     console.error('live-gate error:', err);
     res.status(500).json({ error: String(err.message || err) });
