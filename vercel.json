@@ -1,7 +1,6 @@
 {
   "crons": [
-    { "path": "/api/refresh-cockpit", "schedule": "0 6 * * 1-5" },
-    { "path": "/api/refresh-cockpit", "schedule": "0 7 * * 1-5" },
+    { "path": "/api/refresh-cockpit", "schedule": "0 * * * 1-5" },
     { "path": "/api/fetch-fundamental", "schedule": "0 6 * * 1-5" },
     { "path": "/api/fetch-fundamental", "schedule": "0 7 * * 1-5" },
     { "path": "/api/generate-daily-review", "schedule": "0 22 * * 1-5" }
