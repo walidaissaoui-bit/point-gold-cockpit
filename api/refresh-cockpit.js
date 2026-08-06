@@ -230,7 +230,7 @@ ${emailsBlock || '(aucun email pertinent trouvé dans les dernières 48h)'}`;
     },
     body: JSON.stringify({
       model: 'claude-sonnet-4-6',
-      max_tokens: 3000,
+      max_tokens: 6000,
       system,
       messages: [{ role: 'user', content: user }]
     })
